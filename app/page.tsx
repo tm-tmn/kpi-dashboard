@@ -405,7 +405,6 @@ export default function DashboardPage() {
                     >
                       <Icon size={17} strokeWidth={2.2} />
                     </span>
-                    <span className="text-[11px] font-medium text-base-content/40">{meta.short}</span>
                   </div>
                   <div className="mt-4 flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-base-content">
