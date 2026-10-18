@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Table2 } from "lucide-react";
+import { Table2, FileDown } from "lucide-react";
 import { PATIENT_TYPE_PAIRS, SERVICE_POINTS } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import { RecordRow, availableFiscalYears, fiscalYearTable, fiscalMonthLabels } from "@/lib/aggregate";
@@ -42,15 +42,25 @@ export function AttendanceYearTable({ records }: { records: RecordRow[] }) {
           <Table2 size={16} className="text-base-content/40" />
           <h2 className="text-sm font-semibold text-base-content">ตารางข้อมูลทั้งปี (รายเดือน)</h2>
         </div>
-        <select
-          className="select select-sm select-bordered w-32 bg-base-200/60"
-          value={selectedYear}
-          onChange={(e) => setPickedYear(Number(e.target.value))}
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>ปีงบ {y}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/records/export?year=${selectedYear}`}
+            className="btn btn-sm btn-outline gap-1.5 border-base-content/15 text-base-content/70 hover:border-primary hover:text-primary"
+            title="ดาวน์โหลดตารางนี้เป็นไฟล์ Excel (.xlsx)"
+          >
+            <FileDown size={14} />
+            ส่งออก Excel
+          </a>
+          <select
+            className="select select-sm select-bordered w-32 bg-base-200/60"
+            value={selectedYear}
+            onChange={(e) => setPickedYear(Number(e.target.value))}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>ปีงบ {y}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
