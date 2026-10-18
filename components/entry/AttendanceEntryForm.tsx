@@ -91,7 +91,20 @@ export function AttendanceEntryForm() {
   async function handleSubmit() {
     setSaving(true);
     setStatus(null);
-    const entries = PATIENT_TYPE_PAIRS.map((p) => ({
+    // Only send pairs that were either already saved for this month or
+    // touched in this session — a pair the user never opened and never had
+    // data for must stay absent from the sheet, not get written as a
+    // literal 0 (which would read as "zero patients", a real and different
+    // fact from "not recorded yet").
+    const savedKeys = new Set(
+      records
+        .filter((r) => r.year === year && r.month === month)
+        .map((r) => keyOf(r.point, r.type))
+    );
+    const entries = PATIENT_TYPE_PAIRS.filter((p) => {
+      const k = keyOf(p.point, p.type);
+      return k in edits || savedKeys.has(k);
+    }).map((p) => ({
       point: p.point,
       type: p.type,
       count: values[keyOf(p.point, p.type)] || 0,
@@ -187,7 +200,7 @@ export function AttendanceEntryForm() {
                           className="input input-sm input-bordered w-28 bg-base-200/60 text-right"
                           value={values[k] ?? 0}
                           onChange={(e) =>
-                            setEdits((v) => ({ ...v, [k]: Number(e.target.value) || 0 }))
+                            setEdits((v) => ({ ...v, [k]: Math.max(0, Number(e.target.value) || 0) }))
                           }
                         />
                       </div>

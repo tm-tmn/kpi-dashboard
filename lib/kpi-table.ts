@@ -46,8 +46,9 @@ function sumOrNull(values: (number | null)[]): number | null {
   return present.reduce((s, v) => s + v, 0);
 }
 
-function pctCell(pct: number | null, decimals: number, status?: "pass" | "fail" | "pending" | null): Cell {
+function pctCell(pct: number | null, decimals: number, status?: "pass" | "fail" | "pending" | null, note?: string): Cell {
   if (status === "pending") return { text: "รอทำสัญญา", className: "text-base-content/40", status };
+  if (note) return { text: note, className: "text-base-content/40", status: null };
   const className =
     status === "fail" ? "text-error" : status === "pass" ? "text-success" : "text-base-content/70";
   return { text: pct == null ? "-" : `${pct.toFixed(decimals)}%`, className, status: status ?? null };
@@ -165,7 +166,7 @@ export function buildIndicatorRows(
     case "ratio_pair": {
       const headCells = months.map(({ year, month }) => {
         const r = kpiMonthResult(indicator, records, attendance, year, month);
-        return pctCell(r.pct, decimals, r.status);
+        return pctCell(r.pct, decimals, r.status, r.note);
       });
       const numVals = months.map(({ year, month }) => getNumber(records, year, month, indicator.id, indicator.numerator.key));
       const denVals = months.map(({ year, month }) => getNumber(records, year, month, indicator.id, indicator.denominator.key));

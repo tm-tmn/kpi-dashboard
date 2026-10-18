@@ -30,6 +30,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return NextResponse.json({ error: "เดือนไม่ถูกต้อง: ต้องเป็น 1-12" }, { status: 400 });
+    }
+    if (!Number.isInteger(year) || year < 2400 || year > 2700) {
+      return NextResponse.json({ error: "ปี พ.ศ. ไม่ถูกต้อง" }, { status: 400 });
+    }
 
     // Validate every entry is a known (point, type) pair, and count is a
     // non-negative number — never trust client input blindly.
@@ -44,7 +50,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (typeof e.count !== "number" || e.count < 0 || !Number.isFinite(e.count)) {
+      if (typeof e.count !== "number" || e.count < 0 || !Number.isFinite(e.count) || e.count > 1_000_000) {
         return NextResponse.json(
           { error: `จำนวนไม่ถูกต้องสำหรับ ${e.type}` },
           { status: 400 }

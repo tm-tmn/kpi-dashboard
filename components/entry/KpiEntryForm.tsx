@@ -246,17 +246,20 @@ export function KpiEntryForm() {
                       </div>
                     </div>
                   </div>
-                  {result.pct != null && (
+                  {(result.pct != null || result.note) && (
                     <div
-                      className={`stat-figure-num rounded-field px-2.5 py-1 text-sm font-bold ${
-                        result.status === "fail"
-                          ? "bg-error/15 text-error"
-                          : result.status === "pass"
-                            ? "bg-success/15 text-success"
-                            : "bg-primary/10 text-primary"
+                      className={`rounded-field px-2.5 py-1 text-sm font-bold ${
+                        result.note
+                          ? "bg-base-content/5 text-base-content/50"
+                          : "stat-figure-num " +
+                            (result.status === "fail"
+                              ? "bg-error/15 text-error"
+                              : result.status === "pass"
+                                ? "bg-success/15 text-success"
+                                : "bg-primary/10 text-primary")
                       }`}
                     >
-                      {result.pct.toFixed(indicator.decimals ?? 1)}%
+                      {result.note ?? `${result.pct!.toFixed(indicator.decimals ?? 1)}%`}
                     </div>
                   )}
                 </div>

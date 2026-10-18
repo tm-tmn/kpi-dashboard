@@ -222,6 +222,37 @@ export const KPI_INDICATORS: KpiIndicator[] = [
   },
 ];
 
+export type KpiFieldType = "count" | "percent" | "boolean";
+
+/** What kind of value a given (indicator, field) holds — used for
+ * server-side save validation so a bogus or formula-injected value can
+ * never reach the sheet regardless of what the client sends. Returns null
+ * for a field name that doesn't belong to that indicator at all. */
+export function kpiFieldType(indicator: KpiIndicator, field: string): KpiFieldType | null {
+  switch (indicator.kind) {
+    case "ratio_auto":
+      return field === indicator.numerator.key ? "count" : null;
+    case "ratio_editable":
+      if (field === indicator.numerator.key || field === indicator.denominator.key) return "count";
+      if (indicator.directField && field === indicator.directField.key) return "percent";
+      return null;
+    case "ratio_pair":
+      return field === indicator.numerator.key || field === indicator.denominator.key ? "count" : null;
+    case "direct_percent":
+      return field === indicator.field.key ? "percent" : null;
+    case "pm":
+      for (const g of indicator.groups) {
+        if (field === `${g.key}_pending`) return "boolean";
+        if (field === `${g.key}_success` || field === `${g.key}_total`) return "count";
+      }
+      return null;
+    case "incident":
+      if (field === indicator.countField.key) return "count";
+      if (field === indicator.checkboxField.key) return "boolean";
+      return null;
+  }
+}
+
 // Fiscal year (Thai government convention): Oct–Sep, named after the
 // calendar year it ends in. e.g. Oct 2568–Sep 2569 = ปีงบประมาณ 2569.
 export function fiscalYearOf(calendarYear: number, month1to12: number): number {

@@ -1,4 +1,4 @@
-import { PATIENT_TYPE_PAIRS } from "./constants";
+import { PATIENT_TYPE_PAIRS, MONTH_NAMES_TH } from "./constants";
 import { getSheetsClient, getSheetId } from "./google-client";
 
 const SHEET_NAME = "ข้อมูลดิบ";
@@ -65,7 +65,7 @@ export async function saveMonth(
   }
 
   const updates: { range: string; values: (string | number)[][] }[] = [];
-  const appends: (string | number)[][] = [];
+  const appends: { point: string; type: string; count: number }[] = [];
 
   for (const entry of entries) {
     const match = existingByKey.get(keyOf(entry.point, entry.type));
@@ -75,46 +75,38 @@ export async function saveMonth(
         values: [[entry.count]],
       });
     } else {
-      appends.push([
-        year,
-        month,
-        `=TEXT(DATE(A${"?"},B${"?"},1),"mmmm")`, // placeholder, fixed below
-        entry.point,
-        entry.type,
-        entry.count,
-      ]);
+      appends.push(entry);
     }
   }
 
   if (updates.length > 0) {
+    // RAW, not USER_ENTERED: a value is written literally, never parsed as
+    // a formula.
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId,
-      requestBody: { valueInputOption: "USER_ENTERED", data: updates },
+      requestBody: { valueInputOption: "RAW", data: updates },
     });
   }
 
   if (appends.length > 0) {
-    // We need real row numbers for the month-name formula, so append in
-    // one batch starting right after the current last row.
-    const lastRow = existing.reduce(
-      (max, r) => Math.max(max, r.row),
-      FIRST_DATA_ROW - 1
-    );
-    const fixedAppends = appends.map((row, i) => {
-      const r = lastRow + 1 + i;
-      return [
-        row[0],
-        row[1],
-        `=TEXT(DATE(A${r},B${r},1),"mmmm")`,
-        row[3],
-        row[4],
-        row[5],
-      ];
-    });
+    // Plain month-name text, computed here instead of a `=TEXT(DATE(...))`
+    // formula: the formula depended on row numbers staying stable between
+    // the read above and this append (a race if two saves overlap), and fed
+    // the Buddhist-era `year` straight into DATE(), which expects a
+    // Gregorian year and would silently produce the wrong month name.
+    const monthName = MONTH_NAMES_TH[month - 1];
+    const fixedAppends = appends.map((entry) => [
+      year,
+      month,
+      monthName,
+      entry.point,
+      entry.type,
+      entry.count,
+    ]);
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${SHEET_NAME}!A${FIRST_DATA_ROW}:F`,
-      valueInputOption: "USER_ENTERED",
+      valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: fixedAppends },
     });

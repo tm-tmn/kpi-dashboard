@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readAllKpiRecords, saveKpiMonth } from "@/lib/sheets-kpi";
-import { KPI_INDICATORS } from "@/lib/constants";
+import { KPI_INDICATORS, kpiFieldType } from "@/lib/constants";
 
 // Same pattern as /api/records and /api/tat — live read on every GET, no
 // prerendering/caching.
@@ -30,14 +30,50 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return NextResponse.json({ error: "เดือนไม่ถูกต้อง: ต้องเป็น 1-12" }, { status: 400 });
+    }
+    if (!Number.isInteger(year) || year < 2400 || year > 2700) {
+      return NextResponse.json({ error: "ปี พ.ศ. ไม่ถูกต้อง" }, { status: 400 });
+    }
 
-    const validIndicatorIds = new Set(KPI_INDICATORS.map((k) => k.id));
+    const indicatorById = new Map(KPI_INDICATORS.map((k) => [k.id, k]));
+    // Each entry's value is checked against what that specific field is
+    // allowed to hold (count / percent / boolean) rather than passed through
+    // as-is — this both rejects nonsense (e.g. 150% satisfaction, a negative
+    // count) and closes the formula-injection vector a raw string value would
+    // otherwise open (a leading "=" is never valid for any of these types).
     for (const e of entries) {
-      if (!validIndicatorIds.has(e.indicator)) {
+      const indicator = indicatorById.get(e.indicator);
+      if (!indicator) {
         return NextResponse.json({ error: `ตัวชี้วัดไม่ถูกต้อง: ${e.indicator}` }, { status: 400 });
       }
       if (!e.field || typeof e.field !== "string") {
         return NextResponse.json({ error: `รายการย่อยไม่ถูกต้องสำหรับ ${e.indicator}` }, { status: 400 });
+      }
+      const fieldType = kpiFieldType(indicator, e.field);
+      if (!fieldType) {
+        return NextResponse.json({ error: `รายการย่อยไม่ถูกต้องสำหรับ ${e.indicator}: ${e.field}` }, { status: 400 });
+      }
+      if (fieldType === "boolean") {
+        const v = typeof e.value === "boolean" ? (e.value ? "TRUE" : "FALSE") : String(e.value).toUpperCase();
+        if (v !== "TRUE" && v !== "FALSE") {
+          return NextResponse.json({ error: `ค่าต้องเป็น TRUE/FALSE สำหรับ ${e.indicator}.${e.field}` }, { status: 400 });
+        }
+      } else {
+        const n = typeof e.value === "number" ? e.value : Number(e.value);
+        if (!Number.isFinite(n)) {
+          return NextResponse.json({ error: `ค่าต้องเป็นตัวเลขสำหรับ ${e.indicator}.${e.field}` }, { status: 400 });
+        }
+        if (n < 0) {
+          return NextResponse.json({ error: `ค่าต้องไม่ติดลบสำหรับ ${e.indicator}.${e.field}` }, { status: 400 });
+        }
+        if (fieldType === "percent" && n > 100) {
+          return NextResponse.json({ error: `เปอร์เซ็นต์ต้องไม่เกิน 100 สำหรับ ${e.indicator}.${e.field}` }, { status: 400 });
+        }
+        if (fieldType === "count" && n > 1_000_000) {
+          return NextResponse.json({ error: `จำนวนสูงเกินจริงสำหรับ ${e.indicator}.${e.field}` }, { status: 400 });
+        }
       }
     }
 

@@ -1,4 +1,5 @@
 import { getSheetsClient, getSheetId } from "./google-client";
+import { MONTH_NAMES_TH } from "./constants";
 
 // Same spreadsheet as "ข้อมูลดิบ" / "TAT", separate tab. See SETUP.md ข้อ 7
 // for how to create this tab. Long format, one row per (ปี, เดือน, ตัวชี้วัด,
@@ -83,32 +84,34 @@ export async function saveKpiMonth(
   }
 
   if (updates.length > 0) {
+    // RAW (not USER_ENTERED): a saved value is never interpreted as a
+    // formula, closing the formula-injection vector a leading "=" would
+    // otherwise open via Sheets' own input parsing.
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId,
-      requestBody: { valueInputOption: "USER_ENTERED", data: updates },
+      requestBody: { valueInputOption: "RAW", data: updates },
     });
   }
 
   if (appends.length > 0) {
-    const lastRow = existing.reduce(
-      (max, r) => Math.max(max, r.row),
-      FIRST_DATA_ROW - 1
-    );
-    const fixedAppends = appends.map((entry, i) => {
-      const r = lastRow + 1 + i;
-      return [
-        year,
-        month,
-        `=TEXT(DATE(A${r},B${r},1),"mmmm")`,
-        entry.indicator,
-        entry.field,
-        entry.value as string | number,
-      ];
-    });
+    // Plain month-name text computed here, not a `=TEXT(DATE(...))` formula:
+    // that formula both depended on row numbers staying stable between the
+    // read above and this append (a race if two saves overlap) and fed the
+    // Buddhist-era `year` straight into DATE(), which expects a Gregorian
+    // year and would silently produce the wrong month name.
+    const monthName = MONTH_NAMES_TH[month - 1];
+    const fixedAppends = appends.map((entry) => [
+      year,
+      month,
+      monthName,
+      entry.indicator,
+      entry.field,
+      entry.value as string | number,
+    ]);
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${SHEET_NAME}!A${FIRST_DATA_ROW}:F`,
-      valueInputOption: "USER_ENTERED",
+      valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: fixedAppends },
     });

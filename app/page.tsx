@@ -706,8 +706,8 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <div className="mt-3 stat-figure-num text-3xl font-bold text-base-content">
-                  {result.pct == null ? "-" : `${result.pct.toFixed(indicator.decimals ?? 1)}%`}
+                <div className={result.note ? "mt-3 text-lg font-semibold text-base-content/60" : "mt-3 stat-figure-num text-3xl font-bold text-base-content"}>
+                  {result.note ?? (result.pct == null ? "-" : `${result.pct.toFixed(indicator.decimals ?? 1)}%`)}
                 </div>
                 {result.detail.length > 0 && (
                   <div className="mt-3 space-y-1 border-t border-base-content/8 pt-2">

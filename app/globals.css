@@ -331,7 +331,9 @@ body {
 }
 .bento-enter {
   animation: bento-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(var(--bento-i, 0) * 70ms);
+  /* Capped at 8 slots (560ms) so a long grid's last cards fade in quickly
+     after the first ones instead of trailing in a second or more later. */
+  animation-delay: calc(min(var(--bento-i, 0), 8) * 70ms);
 }
 
 .card-hover {

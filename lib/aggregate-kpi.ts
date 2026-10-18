@@ -37,6 +37,11 @@ export type KpiMonthResult = {
   status: "pass" | "fail" | "pending" | null;
   /** Secondary detail lines for the card (e.g. per-PM-group breakdown). */
   detail: { label: string; pct: number | null; status: "pass" | "fail" | "pending" | null }[];
+  /** Set when pct=100 is otherwise indistinguishable from "no cases at all"
+   * (e.g. a ratio_pair with denominator 0) — a UI should show this text
+   * instead of a bare "100%" so a zero-complaints month doesn't read the
+   * same as an all-resolved one. */
+  note?: string;
 };
 
 /** Compute one indicator's result for a single (year, month), given the KPI
@@ -74,7 +79,10 @@ export function kpiMonthResult(
       const num = getNumber(kpiRecords, year, month, indicator.id, indicator.numerator.key);
       const den = getNumber(kpiRecords, year, month, indicator.id, indicator.denominator.key);
       const pct = num != null && den != null && den > 0 ? (num / den) * 100 : den === 0 ? 100 : null;
-      return { indicator, pct, status: null, detail: [] };
+      // den === 0 (no cases at all that month) renders the same 100% as "every
+      // case got resolved" — disambiguate with a note the UI can show instead.
+      const note = den === 0 ? (indicator.id === "complaint" ? "ไม่มีข้อร้องเรียน" : "ไม่มีข้อมูล (ฐาน = 0)") : undefined;
+      return { indicator, pct, status: null, detail: [], note };
     }
     case "direct_percent": {
       const pct = getNumber(kpiRecords, year, month, indicator.id, indicator.field.key);

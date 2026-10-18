@@ -27,6 +27,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return NextResponse.json({ error: "เดือนไม่ถูกต้อง: ต้องเป็น 1-12" }, { status: 400 });
+    }
+    if (!Number.isInteger(year) || year < 2400 || year > 2700) {
+      return NextResponse.json({ error: "ปี พ.ศ. ไม่ถูกต้อง" }, { status: 400 });
+    }
 
     const validPoints = new Set<string>(SERVICE_POINTS);
     const validStages = new Set<string>(TAT_STAGES);
@@ -37,7 +43,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (typeof e.minutes !== "number" || e.minutes < 0 || !Number.isFinite(e.minutes)) {
+      if (typeof e.minutes !== "number" || e.minutes < 0 || !Number.isFinite(e.minutes) || e.minutes > 10_000) {
         return NextResponse.json(
           { error: `ค่า TAT ไม่ถูกต้องสำหรับ ${e.point} / ${e.stage}` },
           { status: 400 }

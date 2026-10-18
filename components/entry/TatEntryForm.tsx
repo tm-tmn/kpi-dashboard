@@ -74,8 +74,20 @@ export function TatEntryForm() {
   async function handleSubmit() {
     setSaving(true);
     setStatus(null);
+    // Only send (point, stage) pairs already saved for this month or edited
+    // this session — an untouched pair must stay absent from the sheet, not
+    // get written as a literal 0 minutes, which is never a plausible real
+    // TAT value and would silently corrupt the month's averages.
+    const savedKeys = new Set(
+      records
+        .filter((r) => r.year === year && r.month === month)
+        .map((r) => keyOf(r.point, r.stage))
+    );
     const entries = SERVICE_POINTS.flatMap((point) =>
-      TAT_STAGES.map((stage) => ({
+      TAT_STAGES.filter((stage) => {
+        const k = keyOf(point, stage);
+        return k in edits || savedKeys.has(k);
+      }).map((stage) => ({
         point,
         stage,
         minutes: values[keyOf(point, stage)] || 0,
@@ -177,7 +189,7 @@ export function TatEntryForm() {
                             className="input input-sm input-bordered w-24 bg-base-200/60 text-right"
                             value={values[k] ?? 0}
                             onChange={(e) =>
-                              setEdits((v) => ({ ...v, [k]: Number(e.target.value) || 0 }))
+                              setEdits((v) => ({ ...v, [k]: Math.max(0, Number(e.target.value) || 0) }))
                             }
                           />
                           <span className="text-xs text-base-content/40">นาที</span>

@@ -1,4 +1,4 @@
-import { TAT_STAGES } from "./constants";
+import { TAT_STAGES, MONTH_NAMES_TH } from "./constants";
 import { getSheetsClient, getSheetId } from "./google-client";
 
 // Same spreadsheet as "ข้อมูลดิบ", separate tab. See SETUP.md ข้อ 6 for how
@@ -79,32 +79,33 @@ export async function saveTatMonth(
   }
 
   if (updates.length > 0) {
+    // RAW, not USER_ENTERED: a value is written literally, never parsed as
+    // a formula.
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId,
-      requestBody: { valueInputOption: "USER_ENTERED", data: updates },
+      requestBody: { valueInputOption: "RAW", data: updates },
     });
   }
 
   if (appends.length > 0) {
-    const lastRow = existing.reduce(
-      (max, r) => Math.max(max, r.row),
-      FIRST_DATA_ROW - 1
-    );
-    const fixedAppends = appends.map((entry, i) => {
-      const r = lastRow + 1 + i;
-      return [
-        year,
-        month,
-        `=TEXT(DATE(A${r},B${r},1),"mmmm")`,
-        entry.point,
-        entry.stage,
-        entry.minutes,
-      ];
-    });
+    // Plain month-name text, computed here instead of a `=TEXT(DATE(...))`
+    // formula: the formula depended on row numbers staying stable between
+    // the read above and this append (a race if two saves overlap), and fed
+    // the Buddhist-era `year` straight into DATE(), which expects a
+    // Gregorian year and would silently produce the wrong month name.
+    const monthName = MONTH_NAMES_TH[month - 1];
+    const fixedAppends = appends.map((entry) => [
+      year,
+      month,
+      monthName,
+      entry.point,
+      entry.stage,
+      entry.minutes,
+    ]);
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${SHEET_NAME}!A${FIRST_DATA_ROW}:F`,
-      valueInputOption: "USER_ENTERED",
+      valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: fixedAppends },
     });
