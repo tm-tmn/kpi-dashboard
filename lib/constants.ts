@@ -100,6 +100,11 @@ export type KpiIndicator =
       kind: "ratio_editable"; // denominator pre-filled from attendance total but editable
       numerator: KpiField;
       denominator: KpiField;
+      // Optional 3rd field: a directly-typed % that's used when the two counts
+      // above aren't available that month (the hospital's own Excel does this
+      // too — some months have a literal % with no backing counts, e.g. "ABS").
+      // Takes effect ONLY when numerator/denominator can't produce a ratio.
+      directField?: KpiField;
     }
   | {
       id: string;
@@ -170,6 +175,10 @@ export const KPI_INDICATORS: KpiIndicator[] = [
     kind: "ratio_editable",
     numerator: { key: "tat30_count", label: "จำนวนผู้รับบริการที่มีระยะเวลารอคอยไม่เกิน 30 นาที" },
     denominator: { key: "tat30_denominator", label: "จำนวนผู้รับบริการทั้งหมด" },
+    directField: {
+      key: "tat30_pct_direct",
+      label: "อัตราผู้รับบริการที่รอคอยไม่เกิน 30 นาที (กรอกเฉพาะกรณีไม่มีข้อมูลนับรายตามจำนวนด้านบน)",
+    },
   },
   {
     id: "satisfaction",

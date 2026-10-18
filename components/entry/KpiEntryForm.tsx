@@ -105,11 +105,55 @@ export function KpiEntryForm() {
     return [...others, ...merged];
   }, [records, edits, year, month]);
 
+  // Every (indicator, field) the form can show, with the exact same default
+  // fallback each NumberField/checkbox renders when untouched — so a field
+  // the user left at its on-screen default (e.g. "0" incidents, left alone
+  // because there genuinely were none) still gets saved as that value,
+  // instead of silently being left out of the sheet entirely (which made a
+  // true "0" read back as "no data" / "-" later, not PASS).
+  function allFieldSlots(): { indicator: string; field: string; fallback: string }[] {
+    const slots: { indicator: string; field: string; fallback: string }[] = [];
+    for (const indicator of KPI_INDICATORS) {
+      switch (indicator.kind) {
+        case "ratio_auto":
+          slots.push({ indicator: indicator.id, field: indicator.numerator.key, fallback: "0" });
+          break;
+        case "ratio_editable":
+          slots.push({ indicator: indicator.id, field: indicator.numerator.key, fallback: "0" });
+          slots.push({ indicator: indicator.id, field: indicator.denominator.key, fallback: String(attendanceTotal) });
+          if (indicator.directField) {
+            slots.push({ indicator: indicator.id, field: indicator.directField.key, fallback: "" });
+          }
+          break;
+        case "ratio_pair":
+          slots.push({ indicator: indicator.id, field: indicator.numerator.key, fallback: "0" });
+          slots.push({ indicator: indicator.id, field: indicator.denominator.key, fallback: "0" });
+          break;
+        case "direct_percent":
+          slots.push({ indicator: indicator.id, field: indicator.field.key, fallback: "0" });
+          break;
+        case "pm":
+          for (const g of indicator.groups) {
+            slots.push({ indicator: indicator.id, field: `${g.key}_pending`, fallback: "FALSE" });
+            slots.push({ indicator: indicator.id, field: `${g.key}_success`, fallback: "0" });
+            slots.push({ indicator: indicator.id, field: `${g.key}_total`, fallback: "0" });
+          }
+          break;
+        case "incident":
+          slots.push({ indicator: indicator.id, field: indicator.countField.key, fallback: "0" });
+          slots.push({ indicator: indicator.id, field: indicator.checkboxField.key, fallback: "FALSE" });
+          break;
+      }
+    }
+    return slots;
+  }
+
   async function handleSubmit() {
     setSaving(true);
     setStatus(null);
-    const monthRows = draftRecords.filter((r) => r.year === year && r.month === month);
-    const entries = monthRows.map((r) => ({ indicator: r.indicator, field: r.field, value: r.value }));
+    const entries = allFieldSlots()
+      .map(({ indicator, field, fallback }) => ({ indicator, field, value: rawValue(indicator, field, fallback) }))
+      .filter(({ value }) => value !== "");
     try {
       const res = await fetch("/api/kpi", {
         method: "POST",
@@ -119,7 +163,12 @@ export function KpiEntryForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
       setStatus({ type: "ok", text: `บันทึกตัวชี้วัดคุณภาพเดือน ${MONTH_NAMES_TH[month - 1]} ${year} เรียบร้อย` });
-      setRecords(draftRecords);
+      // Mirror exactly what was just saved (every field slot, not only the
+      // ones the user actively edited this session) so the on-screen state
+      // matches the sheet without waiting for a refetch.
+      const others = records.filter((r) => !(r.year === year && r.month === month));
+      const saved = entries.map((e) => ({ year, month, indicator: e.indicator, field: e.field, value: String(e.value) }));
+      setRecords([...others, ...saved]);
       setEdits({});
     } catch (e) {
       setStatus({ type: "err", text: e instanceof Error ? e.message : String(e) });
@@ -236,6 +285,20 @@ export function KpiEntryForm() {
                         ค่าตั้งต้นดึงจากฐานข้อมูลที่ 1 ({attendanceTotal.toLocaleString()} คน) แต่แก้ไขได้ —
                         เพราะตัวเลขในไฟล์เดิมของตัวชี้วัดนี้ไม่ตรงกับยอดรวมผู้รับบริการทุกเดือนเป๊ะเหมือนตัวชี้วัดข้อ 1
                       </p>
+                      {indicator.directField && (
+                        <div className="flex flex-wrap items-end gap-4 border-t border-base-content/8 pt-2">
+                          <NumberField
+                            label={indicator.directField.label}
+                            unit="%"
+                            value={rawValue(indicator.id, indicator.directField.key, "")}
+                            onChange={(v) => setField(indicator.id, indicator.directField!.key, v)}
+                          />
+                          <p className="max-w-sm text-[11px] text-base-content/35">
+                            ใช้เมื่อเดือนนั้นไม่มีข้อมูลนับรายเป็นจำนวนคน (เหมือนไฟล์ต้นฉบับที่บางเดือนกรอก % ตรง ๆ) —
+                            ถ้ากรอกจำนวนทั้ง 2 ช่องด้านบนไว้แล้ว ระบบจะใช้ค่าที่คำนวณจากจำนวนก่อนเสมอ
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 

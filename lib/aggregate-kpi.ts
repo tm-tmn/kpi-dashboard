@@ -60,7 +60,14 @@ export function kpiMonthResult(
       const num = getNumber(kpiRecords, year, month, indicator.id, indicator.numerator.key);
       const denStored = getNumber(kpiRecords, year, month, indicator.id, indicator.denominator.key);
       const den = denStored ?? monthTotal(attendanceRecords, year, month);
-      const pct = num != null && den > 0 ? (num / den) * 100 : null;
+      const computed = num != null && den > 0 ? (num / den) * 100 : null;
+      // Falls back to a directly-typed % for months with no backing counts
+      // (the hospital's own Excel does this too — some months have a literal
+      // % with no counts at all). Counts win whenever they're available.
+      const direct = indicator.directField
+        ? getNumber(kpiRecords, year, month, indicator.id, indicator.directField.key)
+        : null;
+      const pct = computed ?? direct;
       return { indicator, pct, status: null, detail: [] };
     }
     case "ratio_pair": {
