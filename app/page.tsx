@@ -29,6 +29,9 @@ import { StatusBanner } from "@/components/StatusBanner";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { LiveClock } from "@/components/LiveClock";
 import { useTheme } from "@/lib/useTheme";
+import { Dashboard3DView } from "@/components/Dashboard3DView";
+import { use3DView } from "@/lib/use3DView";
+import { Box } from "lucide-react";
 
 // Ranked horizontal bar list — replaces the old per-point pie/donut for
 // "share by ประเภทผู้รับบริการ". A pie's slice labels collide once there
@@ -153,6 +156,7 @@ function Skeleton() {
 
 export default function DashboardPage() {
   const { mode } = useTheme();
+  const { enabled: view3D, toggle: toggle3D } = use3DView();
   const isLight = mode === "light";
   // Recharts needs plain color strings (not CSS vars) for tooltip/axis/grid,
   // so the dark/light pair lives here instead of in globals.css.
@@ -874,6 +878,17 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggle3D}
+            title={view3D ? "ปิดมุมมอง 3D" : "เปิดมุมมอง 3D (ทดลอง — หมุนดูแดชบอร์ดได้เกือบ 360 องศา)"}
+            aria-label="สลับมุมมอง 3D"
+            aria-pressed={view3D}
+            className={`icon-badge btn btn-circle btn-ghost glass-panel border-0 ${
+              view3D ? "text-primary" : "text-base-content/60 hover:text-primary"
+            }`}
+          >
+            <Box size={18} strokeWidth={2.2} />
+          </button>
           <ThemeSwitcher />
           <Link
             href="/entry"
@@ -886,7 +901,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {content}
+      {view3D ? <Dashboard3DView>{content}</Dashboard3DView> : content}
     </div>
   );
 }
