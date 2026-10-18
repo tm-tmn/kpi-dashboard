@@ -167,7 +167,7 @@ export function AttendanceEntryForm() {
               <BentoCard key={point} i={idx + 1} className="!p-0 overflow-hidden">
                 <div className="flex items-center gap-2.5 border-b border-base-content/8 px-5 py-3">
                   <span
-                    className="flex h-7 w-7 items-center justify-center rounded-field"
+                    className="icon-badge flex h-7 w-7 items-center justify-center rounded-field"
                     style={{ background: `color-mix(in oklab, ${meta.color} 18%, transparent)`, color: meta.color }}
                   >
                     <Icon size={14} strokeWidth={2.2} />

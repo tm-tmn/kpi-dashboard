@@ -6,7 +6,11 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
 } from "recharts";
-import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
+import {
+  KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck,
+  CheckCircle2, XCircle, Wrench, Smile, MessageSquareWarning,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { SERVICE_POINTS, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import {
@@ -65,6 +69,26 @@ function TypeBreakdownBars({
     </div>
   );
 }
+
+// Decorative icon + a fixed categorical accent per quality indicator — never
+// a status color (success/error already carry the PASS/FAIL meaning on the
+// badge next to it, so this stays purely identity, not state).
+const KPI_ICON_META: Record<string, LucideIcon> = {
+  rejection: XCircle,
+  pm: Wrench,
+  tat30: Timer,
+  satisfaction: Smile,
+  complaint: MessageSquareWarning,
+  safety: ShieldCheck,
+};
+const KPI_ACCENTS = [
+  "var(--color-primary)",
+  "var(--color-secondary)",
+  "var(--color-accent)",
+  "var(--color-info)",
+  "var(--color-primary)",
+  "var(--color-secondary)",
+];
 
 function Skeleton() {
   return (
@@ -376,7 +400,7 @@ export default function DashboardPage() {
                 <BentoCard key={p.point} i={idx + 1}>
                   <div className="flex items-center justify-between">
                     <span
-                      className="flex h-9 w-9 items-center justify-center rounded-field"
+                      className="icon-badge flex h-9 w-9 items-center justify-center rounded-field"
                       style={{ background: `color-mix(in oklab, ${meta.color} 18%, transparent)`, color: meta.color }}
                     >
                       <Icon size={17} strokeWidth={2.2} />
@@ -457,7 +481,9 @@ export default function DashboardPage() {
       {/* Yearly trend */}
       <BentoCard i={9} className="!p-5">
         <div className="mb-4 flex items-center gap-2">
-          <CalendarClock size={16} className="text-base-content/40" />
+          <span className="icon-badge flex h-7 w-7 items-center justify-center rounded-field bg-primary/15 text-primary">
+            <CalendarClock size={14} strokeWidth={2.2} />
+          </span>
           <h2 className="text-sm font-semibold text-base-content">แนวโน้มยอดผู้รับบริการรายปี</h2>
         </div>
         <ResponsiveContainer width="100%" height={260}>
@@ -516,7 +542,9 @@ export default function DashboardPage() {
         <>
           <div className="mb-4 mt-8 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Timer size={16} className="text-base-content/40" />
+              <span className="icon-badge flex h-7 w-7 items-center justify-center rounded-field bg-accent/15 text-accent">
+                <Timer size={14} strokeWidth={2.2} />
+              </span>
               <h2 className="text-sm font-semibold text-base-content">
                 ระยะเวลาการให้บริการเฉลี่ย (TAT) ช่วงเวลา 6.00-9.00 น.
               </h2>
@@ -586,7 +614,9 @@ export default function DashboardPage() {
       ) : kpiLatestMonth ? (
         <>
           <div className="mb-4 mt-8 flex items-center gap-2">
-            <ShieldCheck size={16} className="text-base-content/40" />
+            <span className="icon-badge flex h-7 w-7 items-center justify-center rounded-field bg-success/15 text-success">
+              <ShieldCheck size={14} strokeWidth={2.2} />
+            </span>
             <h2 className="text-sm font-semibold text-base-content">
               ตัวชี้วัดคุณภาพหน่วยเจาะเลือด เก็บสิ่งส่งตรวจ และ POCT
             </h2>
@@ -597,10 +627,21 @@ export default function DashboardPage() {
 
           {/* Score tiles */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {kpiResults.map(({ indicator, result }, idx) => (
+            {kpiResults.map(({ indicator, result }, idx) => {
+              const Icon = KPI_ICON_META[indicator.id] ?? ShieldCheck;
+              const accent = KPI_ACCENTS[idx % KPI_ACCENTS.length];
+              return (
               <BentoCard key={indicator.id} i={17 + idx} className="!p-5">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-base-content">{indicator.name}</h3>
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className="icon-badge mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-field"
+                      style={{ background: `color-mix(in oklab, ${accent} 18%, transparent)`, color: accent }}
+                    >
+                      <Icon size={14} strokeWidth={2.2} />
+                    </span>
+                    <h3 className="text-sm font-semibold text-base-content">{indicator.name}</h3>
+                  </div>
                   {result.status && (
                     <span
                       className={`flex items-center gap-1 rounded-field px-2 py-0.5 text-[11px] font-semibold ${
@@ -636,7 +677,8 @@ export default function DashboardPage() {
                   </div>
                 )}
               </BentoCard>
-            ))}
+              );
+            })}
           </div>
 
           {/* Trend lines */}

@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearOf } from "@/lib/constants";
 import { monthTotal, RecordRow } from "@/lib/aggregate";
 import { kpiMonthResult, KpiRecordRow } from "@/lib/aggregate-kpi";
-import { Loader2, Save, ShieldCheck, Info } from "lucide-react";
+import {
+  Loader2, Save, ShieldCheck, Info, XCircle, Wrench, Timer, Smile, MessageSquareWarning,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { KpiYearTable } from "@/components/entry/KpiYearTable";
@@ -14,6 +17,25 @@ const CURRENT_BE_YEAR = now.getFullYear() + 543;
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_BE_YEAR - 1 + i);
 
 const keyOf = (indicator: string, field: string) => `${indicator}|||${field}`;
+
+// Same decorative icon + fixed categorical accent per indicator as the
+// dashboard's score tiles (app/page.tsx) — identity only, never status.
+const KPI_ICON_META: Record<string, LucideIcon> = {
+  rejection: XCircle,
+  pm: Wrench,
+  tat30: Timer,
+  satisfaction: Smile,
+  complaint: MessageSquareWarning,
+  safety: ShieldCheck,
+};
+const KPI_ACCENTS = [
+  "var(--color-primary)",
+  "var(--color-secondary)",
+  "var(--color-accent)",
+  "var(--color-info)",
+  "var(--color-primary)",
+  "var(--color-secondary)",
+];
 
 export function KpiEntryForm() {
   const [year, setYear] = useState(CURRENT_BE_YEAR);
@@ -149,14 +171,24 @@ export function KpiEntryForm() {
         <div className="space-y-4">
           {KPI_INDICATORS.map((indicator, idx) => {
             const result = kpiMonthResult(indicator, draftRecords, attendance, year, month);
+            const Icon = KPI_ICON_META[indicator.id] ?? ShieldCheck;
+            const accent = KPI_ACCENTS[idx % KPI_ACCENTS.length];
             return (
               <BentoCard key={indicator.id} i={idx + 1} className="!p-0 overflow-hidden">
                 <div className="flex flex-wrap items-start justify-between gap-2 border-b border-base-content/8 px-5 py-3">
-                  <div>
-                    <div className="text-sm font-semibold text-base-content">{indicator.name}</div>
-                    <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-base-content/40">
-                      <Info size={12} className="mt-0.5 shrink-0" />
-                      {indicator.criteria}
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className="icon-badge mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-field"
+                      style={{ background: `color-mix(in oklab, ${accent} 18%, transparent)`, color: accent }}
+                    >
+                      <Icon size={14} strokeWidth={2.2} />
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold text-base-content">{indicator.name}</div>
+                      <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-base-content/40">
+                        <Info size={12} className="mt-0.5 shrink-0" />
+                        {indicator.criteria}
+                      </div>
                     </div>
                   </div>
                   {result.pct != null && (
