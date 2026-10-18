@@ -287,7 +287,7 @@ export default function DashboardPage() {
         <StatusBanner
           type="warning"
           title={`ตัวชี้วัดคุณภาพไม่ผ่านเกณฑ์ ${failedKpis.length} รายการ · ${MONTH_NAMES_TH[(kpiLatestMonth?.month ?? 1) - 1]} ${kpiLatestMonth?.year}`}
-          message={failedKpis.map((k) => k.indicator.name).join(" · ")}
+          message={failedKpis.map((k) => k.indicator.shortName ?? k.indicator.name).join(" · ")}
         />
       )}
 
@@ -640,7 +640,7 @@ export default function DashboardPage() {
                     >
                       <Icon size={14} strokeWidth={2.2} />
                     </span>
-                    <h3 className="text-sm font-semibold text-base-content">{indicator.name}</h3>
+                    <h3 className="text-sm font-semibold text-base-content">{indicator.shortName ?? indicator.name}</h3>
                   </div>
                   {result.status && (
                     <span
@@ -654,7 +654,7 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="mt-3 stat-figure-num text-3xl font-bold text-base-content">
-                  {result.pct == null ? "-" : `${result.pct.toFixed(1)}%`}
+                  {result.pct == null ? "-" : `${result.pct.toFixed(indicator.decimals ?? 1)}%`}
                 </div>
                 {result.detail.length > 0 && (
                   <div className="mt-3 space-y-1 border-t border-base-content/8 pt-2">
@@ -670,7 +670,7 @@ export default function DashboardPage() {
                                 : "text-base-content/50"
                           }
                         >
-                          {d.status === "pending" ? "รอทำสัญญา" : d.pct == null ? "-" : `${d.pct.toFixed(0)}%`}
+                          {d.status === "pending" ? "รอทำสัญญา" : d.pct == null ? "-" : `${d.pct.toFixed(indicator.decimals ?? 1)}%`}
                         </span>
                       </div>
                     ))}
@@ -685,7 +685,7 @@ export default function DashboardPage() {
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {kpiTrendByIndicator.map(({ indicator, data }, idx) => (
               <BentoCard key={indicator.id} i={23 + idx} className="!p-5">
-                <h3 className="mb-1 text-xs font-semibold text-base-content/70">{indicator.name}</h3>
+                <h3 className="mb-1 text-xs font-semibold text-base-content/70">{indicator.shortName ?? indicator.name}</h3>
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />

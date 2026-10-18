@@ -184,7 +184,7 @@ export function KpiEntryForm() {
                       <Icon size={14} strokeWidth={2.2} />
                     </span>
                     <div>
-                      <div className="text-sm font-semibold text-base-content">{indicator.name}</div>
+                      <div className="text-sm font-semibold text-base-content">{indicator.shortName ?? indicator.name}</div>
                       <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-base-content/40">
                         <Info size={12} className="mt-0.5 shrink-0" />
                         {indicator.criteria}
@@ -201,7 +201,7 @@ export function KpiEntryForm() {
                             : "bg-primary/10 text-primary"
                       }`}
                     >
-                      {result.pct.toFixed(1)}%
+                      {result.pct.toFixed(indicator.decimals ?? 1)}%
                     </div>
                   )}
                 </div>
@@ -274,7 +274,7 @@ export function KpiEntryForm() {
                               <span className="text-xs font-semibold text-base-content/80">{g.label}</span>
                               {groupResult?.pct != null && (
                                 <span className="stat-figure-num text-xs font-bold text-base-content/70">
-                                  {groupResult.pct.toFixed(0)}%
+                                  {groupResult.pct.toFixed(indicator.decimals ?? 1)}%
                                 </span>
                               )}
                               {pending && <span className="badge badge-ghost text-[10px]">รอทำสัญญา</span>}
@@ -370,13 +370,18 @@ function NumberField({
       <label className="mb-1 block text-xs text-base-content/50">{label}</label>
       <div className="flex items-center gap-1.5">
         <input
-          type="number"
-          min={0}
-          step="any"
+          // A plain text input (not type="number") so typing is never locked —
+          // no rejected keystrokes, no inability to clear the field, no
+          // browser-specific quirks around pasting. Only format is validated,
+          // not every keystroke, so the user can freely type/backspace/select.
+          type="text"
           inputMode="decimal"
           className={`input input-sm input-bordered bg-base-200/60 text-right ${compact ? "w-20" : "w-28"}`}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "" || /^\d*\.?\d*$/.test(v)) onChange(v);
+          }}
         />
         {unit && <span className="text-xs text-base-content/40">{unit}</span>}
       </div>

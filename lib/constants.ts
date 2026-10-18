@@ -74,18 +74,29 @@ export const TAT_STAGE_META: Record<TatStage, { short: string; color: string; to
 // here directly; it is NOT guaranteed to match the hospital's real standard.
 export type KpiField = { key: string; label: string };
 
+// "name" is the full official wording from the hospital's Excel (used by the
+// Excel-mirrored year table's "ตัวชี้วัด" column); "shortName" is a compact
+// label for tight spots (dashboard score tiles, entry-form card headers) —
+// falls back to "name" when not given. Decimal places for the headline %
+// default to 1 (matches the Excel for most indicators); rejection + PM
+// override to 2 since those are tracked to a finer tolerance (e.g. 0.13%,
+// 96.15%).
 export type KpiIndicator =
   | {
       id: string;
       name: string;
+      shortName?: string;
       criteria: string;
+      decimals?: number;
       kind: "ratio_auto"; // denominator auto-pulled from attendance total, read-only
       numerator: KpiField;
     }
   | {
       id: string;
       name: string;
+      shortName?: string;
       criteria: string;
+      decimals?: number;
       kind: "ratio_editable"; // denominator pre-filled from attendance total but editable
       numerator: KpiField;
       denominator: KpiField;
@@ -93,7 +104,9 @@ export type KpiIndicator =
   | {
       id: string;
       name: string;
+      shortName?: string;
       criteria: string;
+      decimals?: number;
       kind: "ratio_pair"; // both numerator and denominator entered manually
       numerator: KpiField;
       denominator: KpiField;
@@ -101,21 +114,27 @@ export type KpiIndicator =
   | {
       id: string;
       name: string;
+      shortName?: string;
       criteria: string;
+      decimals?: number;
       kind: "direct_percent"; // a single % value entered directly
       field: KpiField;
     }
   | {
       id: string;
       name: string;
+      shortName?: string;
       criteria: string;
+      decimals?: number;
       kind: "pm"; // PM device groups: success count, total count, "pending contract" flag
       groups: { key: string; label: string }[];
     }
   | {
       id: string;
       name: string;
+      shortName?: string;
       criteria: string;
+      decimals?: number;
       kind: "incident"; // incident count (PASS if 0) + a yes/no checkbox
       countField: KpiField;
       checkboxField: KpiField;
@@ -124,15 +143,19 @@ export type KpiIndicator =
 export const KPI_INDICATORS: KpiIndicator[] = [
   {
     id: "rejection",
-    name: "อัตราการปฏิเสธสิ่งส่งตรวจ",
-    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    name: "อัตราการปฏิเสธสิ่งส่งตรวจ(ต่อผู้รับบริการ) %Rejected specimen (Patient)",
+    shortName: "อัตราการปฏิเสธสิ่งส่งตรวจ",
+    criteria: "ไม่เกินร้อยละ 0.5 ในแต่ละเดือน",
+    decimals: 2,
     kind: "ratio_auto",
     numerator: { key: "rejection_count", label: "จำนวนอุบัติการณ์การปฏิเสธสิ่งส่งตรวจ" },
   },
   {
     id: "pm",
-    name: "PM เครื่องจัดเตรียมหลอดเลือดอัตโนมัติ",
-    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    name: "การทำ Preventive maintenance (PM) เครื่องจัดเตรียมหลอดเลือดอัตโนมัติและ Corrective action ในแต่ละปี",
+    shortName: "PM เครื่องจัดเตรียมหลอดเลือดอัตโนมัติ",
+    criteria: "Preventive maintenance (PM) และ Corrective action ต้องดำเนินการสำเร็จร้อยละ 100.0 ในแต่ละปี",
+    decimals: 2,
     kind: "pm",
     groups: [
       { key: "select", label: "SELECT" },
@@ -141,16 +164,17 @@ export const KPI_INDICATORS: KpiIndicator[] = [
   },
   {
     id: "tat30",
-    name: "อัตราผู้รับบริการที่รอคอยไม่เกิน 30 นาที",
-    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    name: "ระยะเวลาการให้บริการโดยภาพรวม (Turn Around Time) %TAT ได้ตามกำหนด (ไม่เกิน 30 นาทีต่อราย) ในแต่ละเดือน",
+    shortName: "อัตราผู้รับบริการที่รอคอยไม่เกิน 30 นาที",
+    criteria: "อัตราระยะเวลาการให้บริการโดยภาพรวม (Turn Around Time) %TAT ได้ตามกำหนด (ไม่เกิน 30 นาทีต่อราย) ต้องผ่านมากกว่าร้อยละ 90.0 ในแต่ละเดือน",
     kind: "ratio_editable",
-    numerator: { key: "tat30_count", label: "จำนวนผู้รับบริการที่รอคอยไม่เกิน 30 นาที" },
-    denominator: { key: "tat30_denominator", label: "จำนวนผู้รับบริการทั้งหมด (TAT)" },
+    numerator: { key: "tat30_count", label: "จำนวนผู้รับบริการที่มีระยะเวลารอคอยไม่เกิน 30 นาที" },
+    denominator: { key: "tat30_denominator", label: "จำนวนผู้รับบริการทั้งหมด" },
   },
   {
     id: "satisfaction",
     name: "ความพึงพอใจของผู้รับบริการ",
-    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    criteria: "เกณฑ์การประเมินความพึงพอใจของผู้รับบริการที่ดีมาก (ระดับ 5) มากกว่าร้อยละ 80 ในแต่ละเดือน",
     kind: "direct_percent",
     field: { key: "satisfaction_pct", label: "ร้อยละความพึงพอใจ" },
   },

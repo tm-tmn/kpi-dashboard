@@ -9,19 +9,22 @@ export type KpiRecordRow = {
   value: string;
 };
 
-function getRaw(records: KpiRecordRow[], year: number, month: number, indicator: string, field: string) {
+// Exported too — the Excel-mirrored year table (KpiYearTable) needs the same
+// raw-field access to render each indicator's underlying count rows, not
+// just the headline % this module otherwise returns.
+export function getRaw(records: KpiRecordRow[], year: number, month: number, indicator: string, field: string) {
   return records.find(
     (r) => r.year === year && r.month === month && r.indicator === indicator && r.field === field
   )?.value;
 }
 
-function getNumber(records: KpiRecordRow[], year: number, month: number, indicator: string, field: string) {
+export function getNumber(records: KpiRecordRow[], year: number, month: number, indicator: string, field: string) {
   const raw = getRaw(records, year, month, indicator, field);
   const n = raw == null || raw === "" ? NaN : Number(raw);
   return Number.isFinite(n) ? n : null;
 }
 
-function getBool(records: KpiRecordRow[], year: number, month: number, indicator: string, field: string) {
+export function getBool(records: KpiRecordRow[], year: number, month: number, indicator: string, field: string) {
   const raw = getRaw(records, year, month, indicator, field);
   return raw === "TRUE" || raw === "true" || raw === "1";
 }
