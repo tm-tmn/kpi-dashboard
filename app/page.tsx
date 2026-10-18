@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
 } from "recharts";
-import { Plus, TrendingUp, TrendingDown, Users, CalendarClock } from "lucide-react";
+import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet } from "lucide-react";
 import { SERVICE_POINTS } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import {
@@ -73,16 +73,17 @@ export default function DashboardPage() {
   const sparklineData = trend.slice(-6).map((t) => ({ year: t.year, total: t.total }));
   const trendChartData = trend.map((t) => ({ year: String(t.year), total: t.total }));
 
+  let content: React.ReactNode;
+
   if (loading) {
-    return (
+    content = (
       <div className="space-y-6">
         <div className="skeleton h-10 w-72 rounded-field bg-base-200/60" />
         <Skeleton />
       </div>
     );
-  }
-  if (error) {
-    return (
+  } else if (error) {
+    content = (
       <div className="glass-panel rounded-box p-6 text-sm">
         <div className="font-semibold text-error">โหลดข้อมูลไม่สำเร็จ</div>
         <div className="mt-1 text-base-content/60">{error}</div>
@@ -91,24 +92,9 @@ export default function DashboardPage() {
         </div>
       </div>
     );
-  }
-
-  return (
+  } else {
+    content = (
     <div className="space-y-6 pb-16">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-base-content sm:text-2xl">
-            สถิติงานบริการหน่วยเจาะเลือด เก็บสิ่งส่งตรวจ และ POCT
-          </h1>
-          <p className="mt-1 text-sm text-base-content/50">โรงพยาบาลศรีนครินทร์</p>
-        </div>
-        <Link href="/entry" className="btn btn-primary gap-2 shadow-lg shadow-primary/20">
-          <Plus size={16} />
-          กรอกข้อมูลเดือนใหม่
-        </Link>
-      </div>
-
       {years.length === 0 && (
         <div className="glass-panel rounded-box p-6 text-sm text-base-content/70">
           ยังไม่มีข้อมูลในชีต &quot;ข้อมูลดิบ&quot; — เริ่มกรอกได้ที่หน้า{" "}
@@ -326,6 +312,36 @@ export default function DashboardPage() {
           ปี 2563-2568: ยอดรวมจากไฟล์เดิม (ไม่แยกจุดบริการ) · ปี 2569 เป็นต้นไป: คำนวณจากข้อมูลที่กรอกจริง
         </p>
       </BentoCard>
+    </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-field bg-error/15 text-error">
+            <Droplet size={19} strokeWidth={2.4} fill="currentColor" fillOpacity={0.25} />
+          </span>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-base-content sm:text-2xl">
+              สถิติงานบริการหน่วยเจาะเลือด เก็บสิ่งส่งตรวจ และ POCT
+            </h1>
+            <p className="mt-1 text-sm text-base-content/50">โรงพยาบาลศรีนครินทร์</p>
+          </div>
+        </div>
+        <Link
+          href="/entry"
+          title="เข้าสู่ระบบกรอกข้อมูล"
+          aria-label="เข้าสู่ระบบกรอกข้อมูล"
+          className="btn btn-circle btn-ghost glass-panel border-0 text-base-content/60 hover:text-primary"
+        >
+          <KeyRound size={18} strokeWidth={2.2} />
+        </Link>
+      </div>
+
+      {content}
     </div>
   );
 }

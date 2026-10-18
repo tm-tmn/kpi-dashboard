@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Droplet, LayoutDashboard, FileSpreadsheet, Menu } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Droplet, LayoutDashboard, FileSpreadsheet, Menu, LogOut } from "lucide-react";
 import { useState } from "react";
 
 const NAV = [
@@ -50,6 +50,24 @@ function Brand() {
   );
 }
 
+function LogoutButton({ className }: { className?: string }) {
+  const router = useRouter();
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/");
+    router.refresh();
+  }
+  return (
+    <button
+      onClick={handleLogout}
+      className={`flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium text-base-content/70 transition-colors hover:bg-white/5 hover:text-error ${className ?? ""}`}
+    >
+      <LogOut size={18} strokeWidth={2} />
+      ออกจากระบบ
+    </button>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
@@ -60,8 +78,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="glass-panel flex h-full flex-col gap-6 rounded-box p-4">
           <Brand />
           <NavLinks />
-          <div className="mt-auto rounded-field border border-white/8 bg-white/3 p-3 text-xs text-base-content/50">
-            ข้อมูลซิงก์กับ Google Sheet แบบเรียลไทม์
+          <div className="mt-auto flex flex-col gap-2">
+            <div className="rounded-field border border-white/8 bg-white/3 p-3 text-xs text-base-content/50">
+              ข้อมูลซิงก์กับ Google Sheet แบบเรียลไทม์
+            </div>
+            <LogoutButton />
           </div>
         </div>
       </aside>
@@ -85,6 +106,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Brand />
             </div>
             <NavLinks onNavigate={() => setOpen(false)} />
+            <div className="mt-4 border-t border-white/8 pt-4">
+              <LogoutButton />
+            </div>
           </div>
         </div>
       )}

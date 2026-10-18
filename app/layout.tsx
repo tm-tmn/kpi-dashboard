@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
   title: "KPI Dashboard - หน่วยเจาะเลือด",
@@ -20,7 +19,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col font-sans">
         <div className="ambient-bg" aria-hidden="true" />
-        <AppShell>{children}</AppShell>
+        {children}
       </body>
     </html>
   );
