@@ -119,41 +119,53 @@ export async function buildKpiWorkbook(
     const rows = buildIndicatorRows(indicator, kpiRecords, attendance, months);
     const startRow = r;
 
+    // Column B ("ตัวชี้วัด") merges down per name/group entity — matches the
+    // real file's A6/B7:B9/B10:B12-style nested merges (the PM indicator has
+    // more than one name entity per block; every other indicator has one).
+    let nameBlockStart: number | null = null;
+    let nameBlockSpan = 0;
+
     rows.forEach((row) => {
       const excelRow = ws.getRow(r);
 
-      // ลำดับ — merged across the whole indicator block, written once below.
+      // ลำดับที่ — merged across the whole indicator block, written once below.
       const idxCell = excelRow.getCell(1);
       idxCell.border = THIN_BORDER;
 
-      const labelCell = excelRow.getCell(2);
-      labelCell.value = row.label;
-      labelCell.font = row.bold ? { bold: true } : { color: { argb: "FF6B7280" } };
-      labelCell.alignment = {
+      const nameCell = excelRow.getCell(2);
+      nameCell.border = THIN_BORDER;
+      nameCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+      if (row.nameLabel) {
+        nameCell.value = row.nameLabel;
+        nameCell.font = { bold: true };
+        nameBlockStart = r;
+        nameBlockSpan = row.nameSpan ?? 1;
+      }
+
+      const descCell = excelRow.getCell(3);
+      descCell.value = row.desc;
+      descCell.font = row.bold ? { color: { argb: "FF374151" } } : { color: { argb: "FF6B7280" }, italic: true };
+      descCell.alignment = {
         horizontal: "left",
         vertical: "middle",
-        indent: row.indent ? 2 : 0,
+        indent: row.indent ? 1 : 0,
         wrapText: true,
       };
-      labelCell.border = THIN_BORDER;
-
-      const criteriaCell = excelRow.getCell(3);
-      criteriaCell.border = THIN_BORDER;
-      criteriaCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-      if (row.bold) {
-        criteriaCell.value = indicator.criteria;
-        criteriaCell.font = { color: { argb: "FF6B7280" }, italic: true };
-      }
+      descCell.border = THIN_BORDER;
 
       row.cells.forEach((cell, i) => {
         const excelCell = excelRow.getCell(4 + i);
-        writeValueCell(excelCell, cell.text, row.valueKind, row.decimals, cell.status);
+        if (row.valueKind !== "blank") {
+          writeValueCell(excelCell, cell.text, row.valueKind, row.decimals, cell.status);
+        }
         excelCell.border = THIN_BORDER;
       });
 
       const totalCell = excelRow.getCell(4 + months.length);
-      writeValueCell(totalCell, row.total.text, row.valueKind, row.decimals, row.total.status);
-      totalCell.font = { ...(totalCell.font ?? {}), bold: true };
+      if (row.valueKind !== "blank") {
+        writeValueCell(totalCell, row.total.text, row.valueKind, row.decimals, row.total.status);
+        totalCell.font = { ...(totalCell.font ?? {}), bold: true };
+      }
       totalCell.border = THIN_BORDER;
       totalCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } };
 
@@ -163,12 +175,17 @@ export async function buildKpiWorkbook(
         });
       }
 
+      // Close out the current name-merge block once its last row is written.
+      if (nameBlockStart !== null && r === nameBlockStart + nameBlockSpan - 1) {
+        if (nameBlockSpan > 1) ws.mergeCells(nameBlockStart, 2, r, 2);
+        nameBlockStart = null;
+      }
+
       r += 1;
     });
 
     if (rows.length > 1) {
       ws.mergeCells(startRow, 1, r - 1, 1);
-      ws.mergeCells(startRow, 3, r - 1, 3);
     }
     const firstIdxCell = ws.getCell(startRow, 1);
     firstIdxCell.value = idx + 1;

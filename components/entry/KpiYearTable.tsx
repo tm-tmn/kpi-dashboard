@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Table2, FileDown } from "lucide-react";
 import { KPI_INDICATORS, fiscalYearMonths, MONTH_ABBR_TH } from "@/lib/constants";
 import { RecordRow } from "@/lib/aggregate";
@@ -82,39 +82,63 @@ export function KpiYearTable({ records, attendance }: { records: KpiRecordRow[];
             </tr>
           </thead>
           <tbody>
-            {indicatorRows.map(({ idx, indicator, rows }) =>
-              rows.map((row, rowIdx) => (
-                <tr
-                  key={`${indicator.id}-${rowIdx}`}
-                  className={`border-b border-base-content/5 hover:bg-base-content/3 ${
-                    row.bold ? "bg-base-content/[0.02]" : ""
-                  }`}
-                >
-                  <td className="sticky left-0 z-10 bg-base-100/90 py-1.5 pr-2 text-center text-base-content/40 backdrop-blur-sm">
-                    {rowIdx === 0 ? idx : ""}
-                  </td>
-                  <td
-                    className={`sticky left-10 z-10 max-w-[260px] truncate bg-base-100/90 py-1.5 pr-3 backdrop-blur-sm ${
-                      row.bold ? "font-semibold text-base-content" : "pl-4 text-base-content/55"
-                    }`}
-                    title={row.label}
-                  >
-                    {row.label}
-                  </td>
-                  <td className="max-w-[220px] py-1.5 pr-3 text-base-content/45">
-                    {rowIdx === 0 ? indicator.criteria : ""}
-                  </td>
-                  {row.cells.map((cell, i) => (
-                    <td key={i} className={`stat-figure-num px-2 py-1.5 text-right ${cell.className ?? "text-base-content/70"}`}>
-                      {cell.text}
+            {indicatorRows.map(({ idx, indicator, rows }) => {
+              // Column B ("ตัวชี้วัด") merges down via a real rowSpan whenever a
+              // row starts a name/group entity (mirrors the real file's cell
+              // merges) — track how many of the following rows that covers so
+              // we skip rendering the <td> for them entirely.
+              let nameRemaining = 0;
+              return rows.map((row, rowIdx) => {
+                let nameCell: ReactNode = null;
+                if (nameRemaining > 0) {
+                  nameRemaining -= 1;
+                } else if (row.nameLabel) {
+                  nameCell = (
+                    <td
+                      rowSpan={row.nameSpan ?? 1}
+                      className="sticky left-10 z-10 max-w-[260px] bg-base-100/90 py-1.5 pr-3 align-top font-semibold text-base-content backdrop-blur-sm"
+                      title={row.nameLabel}
+                    >
+                      {row.nameLabel}
                     </td>
-                  ))}
-                  <td className={`stat-figure-num px-2 py-1.5 text-right font-semibold ${row.total.className ?? "text-base-content/80"}`}>
-                    {row.total.text}
-                  </td>
-                </tr>
-              ))
-            )}
+                  );
+                  nameRemaining = (row.nameSpan ?? 1) - 1;
+                }
+                return (
+                  <tr
+                    key={`${indicator.id}-${rowIdx}`}
+                    className={`border-b border-base-content/5 hover:bg-base-content/3 ${
+                      row.bold ? "bg-base-content/[0.02]" : ""
+                    }`}
+                  >
+                    {rowIdx === 0 && (
+                      <td
+                        rowSpan={rows.length}
+                        className="sticky left-0 z-10 bg-base-100/90 py-1.5 pr-2 text-center align-top text-base-content/40 backdrop-blur-sm"
+                      >
+                        {idx}
+                      </td>
+                    )}
+                    {nameCell}
+                    <td
+                      className={`max-w-[220px] py-1.5 pr-3 ${
+                        row.bold ? "text-base-content/70" : "pl-4 text-base-content/45"
+                      }`}
+                    >
+                      {row.desc}
+                    </td>
+                    {row.cells.map((cell, i) => (
+                      <td key={i} className={`stat-figure-num px-2 py-1.5 text-right ${cell.className ?? "text-base-content/70"}`}>
+                        {cell.text}
+                      </td>
+                    ))}
+                    <td className={`stat-figure-num px-2 py-1.5 text-right font-semibold ${row.total.className ?? "text-base-content/80"}`}>
+                      {row.total.text}
+                    </td>
+                  </tr>
+                );
+              });
+            })}
           </tbody>
         </table>
       </div>

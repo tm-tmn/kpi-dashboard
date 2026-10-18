@@ -5,20 +5,38 @@ import { kpiMonthResult, getNumber, getBool, KpiRecordRow } from "./aggregate-kp
 // Shared row-building logic for the Excel-mirrored KPI table — used by both
 // the on-page KpiYearTable component and the server-side Excel export, so
 // the two can never drift apart.
+//
+// Column semantics mirror the hospital's own Excel file exactly:
+//   - "ลำดับที่" (index) merges across an indicator's whole row block.
+//   - "ตัวชี้วัด" (name) only holds text on the row that starts a name/group
+//     entity (an indicator's own name, or — for the PM indicator — each
+//     device group's name); it's merged down across "nameSpan" rows from
+//     there and left blank on the rows it covers.
+//   - "เกณฑ์ประเมิน" is NOT merged — every row has its own text: the full
+//     evaluation-criteria sentence on an indicator's headline row, or that
+//     row's own field description on every row beneath it (matching the
+//     real file, which reuses this column for per-row descriptions).
 
 export type Cell = { text: string; className?: string; status?: "pass" | "fail" | "pending" | null };
 // "valueKind" tells a consumer (the Excel export, in particular) how to
 // treat a row's cell text as a real value rather than a display string:
 // "percent" cells are a number with a % sign, "count" cells are a plain
 // integer (possibly with thousands separators), "status" cells are the
-// literal text PASS/FAIL/"-" (no numeric meaning).
+// literal text PASS/FAIL, "blank" rows carry no data at all (the PM
+// indicator's own title row, matching the real file's empty header line).
 export type Row = {
-  label: string;
+  /** Column B ("ตัวชี้วัด") text — only set on the row that starts a name
+   * entity; omitted on rows the entity's span covers. */
+  nameLabel?: string;
+  /** How many rows (including this one) nameLabel spans/merges down. */
+  nameSpan?: number;
+  /** Column C ("เกณฑ์ประเมิน") text for this specific row. */
+  desc: string;
   indent?: boolean;
   bold?: boolean;
   cells: Cell[];
   total: Cell;
-  valueKind: "percent" | "count" | "status";
+  valueKind: "percent" | "count" | "status" | "blank";
   decimals?: number;
 };
 
@@ -39,6 +57,10 @@ function countCell(n: number | null): Cell {
   return { text: n == null ? "-" : n.toLocaleString() };
 }
 
+function blankCells(n: number): Cell[] {
+  return Array.from({ length: n }, () => ({ text: "" }));
+}
+
 /** Weighted total %: sum(numerators) / sum(denominators), the same way each
  * month's own % is computed — not an average-of-percentages, so a handful of
  * low-volume months don't get the same weight as a high-volume one. */
@@ -55,9 +77,10 @@ function averagePctTotal(values: (number | null)[], decimals: number): Cell {
   return { text: `${avg.toFixed(decimals)}%` };
 }
 
-/** Builds the Excel-mirrored row set for one indicator: a bold headline %/
- * status row, followed by the same raw-count sub-rows the hospital's own
- * sheet shows underneath it (indented, same labels as the entry form). */
+/** Builds the Excel-mirrored row set for one indicator: a headline %/status
+ * row followed by the same raw-count sub-rows the hospital's own sheet shows
+ * underneath it (same field labels as the entry form, so the two always
+ * agree). */
 export function buildIndicatorRows(
   indicator: KpiIndicator,
   records: KpiRecordRow[],
@@ -76,7 +99,9 @@ export function buildIndicatorRows(
       const numVals = months.map(({ year, month }) => getNumber(records, year, month, indicator.id, indicator.numerator.key));
       const denVals = months.map(({ year, month }) => monthTotal(attendance, year, month));
       rows.push({
-        label: indicator.name,
+        nameLabel: indicator.name,
+        nameSpan: 3,
+        desc: indicator.criteria,
         bold: true,
         cells: headCells,
         total: weightedPctTotal(sumOrNull(numVals), sumOrNull(denVals), decimals),
@@ -84,14 +109,14 @@ export function buildIndicatorRows(
         decimals,
       });
       rows.push({
-        label: indicator.numerator.label,
+        desc: indicator.numerator.label,
         indent: true,
         cells: numVals.map(countCell),
         total: countCell(sumOrNull(numVals)),
         valueKind: "count",
       });
       rows.push({
-        label: "จำนวนผู้รับบริการทั้งหมด",
+        desc: "จำนวนผู้รับบริการทั้งหมด",
         indent: true,
         cells: denVals.map(countCell),
         total: countCell(sumOrNull(denVals)),
@@ -111,7 +136,9 @@ export function buildIndicatorRows(
         return stored ?? monthTotal(attendance, year, month);
       });
       rows.push({
-        label: indicator.name,
+        nameLabel: indicator.name,
+        nameSpan: 3,
+        desc: indicator.criteria,
         bold: true,
         cells: headCells,
         total: weightedPctTotal(sumOrNull(numVals), sumOrNull(denVals), decimals),
@@ -119,14 +146,14 @@ export function buildIndicatorRows(
         decimals,
       });
       rows.push({
-        label: indicator.numerator.label,
+        desc: indicator.numerator.label,
         indent: true,
         cells: numVals.map(countCell),
         total: countCell(sumOrNull(numVals)),
         valueKind: "count",
       });
       rows.push({
-        label: indicator.denominator.label,
+        desc: indicator.denominator.label,
         indent: true,
         cells: denVals.map(countCell),
         total: countCell(sumOrNull(denVals)),
@@ -143,7 +170,9 @@ export function buildIndicatorRows(
       const numVals = months.map(({ year, month }) => getNumber(records, year, month, indicator.id, indicator.numerator.key));
       const denVals = months.map(({ year, month }) => getNumber(records, year, month, indicator.id, indicator.denominator.key));
       rows.push({
-        label: indicator.name,
+        nameLabel: indicator.name,
+        nameSpan: 3,
+        desc: indicator.criteria,
         bold: true,
         cells: headCells,
         total: weightedPctTotal(sumOrNull(numVals), sumOrNull(denVals), decimals),
@@ -151,14 +180,14 @@ export function buildIndicatorRows(
         decimals,
       });
       rows.push({
-        label: indicator.numerator.label,
+        desc: indicator.numerator.label,
         indent: true,
         cells: numVals.map(countCell),
         total: countCell(sumOrNull(numVals)),
         valueKind: "count",
       });
       rows.push({
-        label: indicator.denominator.label,
+        desc: indicator.denominator.label,
         indent: true,
         cells: denVals.map(countCell),
         total: countCell(sumOrNull(denVals)),
@@ -170,7 +199,9 @@ export function buildIndicatorRows(
     case "direct_percent": {
       const pctVals = months.map(({ year, month }) => getNumber(records, year, month, indicator.id, indicator.field.key));
       rows.push({
-        label: indicator.name,
+        nameLabel: indicator.name,
+        nameSpan: 1,
+        desc: indicator.criteria,
         bold: true,
         cells: pctVals.map((v) => pctCell(v, decimals)),
         total: averagePctTotal(pctVals, decimals),
@@ -181,23 +212,17 @@ export function buildIndicatorRows(
     }
 
     case "pm": {
-      // Overall headline = plain average of each group's own %, same as
-      // kpiMonthResult's "active groups average" rule.
-      const headCells = months.map(({ year, month }) => {
-        const r = kpiMonthResult(indicator, records, attendance, year, month);
-        return pctCell(r.pct, decimals, null);
-      });
-      const monthlyActivePcts = months.map(({ year, month }) => {
-        const r = kpiMonthResult(indicator, records, attendance, year, month);
-        return r.pct;
-      });
+      // Title-only row: name + criteria, no data cells — matches the real
+      // file's blank header line sitting above the per-group rows (no
+      // overall average of SELECT+HEN M is computed there).
       rows.push({
-        label: indicator.name,
+        nameLabel: indicator.name,
+        nameSpan: 1,
+        desc: indicator.criteria,
         bold: true,
-        cells: headCells,
-        total: averagePctTotal(monthlyActivePcts, decimals),
-        valueKind: "percent",
-        decimals,
+        cells: blankCells(months.length),
+        total: { text: "" },
+        valueKind: "blank",
       });
 
       for (const g of indicator.groups) {
@@ -218,22 +243,24 @@ export function buildIndicatorRows(
         const allPending = pendingVals.every(Boolean);
         const pendingCell: Cell = { text: "รอทำสัญญา", className: "text-base-content/40", status: "pending" };
         rows.push({
-          label: `ร้อยละ PM/CAL (${g.label})`,
-          indent: true,
+          nameLabel: g.label,
+          nameSpan: 3,
+          desc: `ร้อยละ PM/CAL (${g.label})`,
+          bold: true,
           cells: groupPctCells,
           total: allPending ? pendingCell : weightedPctTotal(sumOrNull(successVals), sumOrNull(totalVals), decimals),
           valueKind: "percent",
           decimals,
         });
         rows.push({
-          label: `${g.label} · จำนวนเครื่องที่ทำ PM และ CAL ที่ผ่าน`,
+          desc: "จำนวนเครื่องที่ทำ PM และCAL ที่สำเร็จ",
           indent: true,
           cells: months.map((_, i) => (pendingVals[i] ? pendingCell : countCell(successVals[i]))),
           total: allPending ? pendingCell : countCell(sumOrNull(successVals)),
           valueKind: "count",
         });
         rows.push({
-          label: `${g.label} · จำนวนเครื่องที่ทำ PM และ CAL ทั้งหมด`,
+          desc: "จำนวนเครื่องที่ทำ PM และ CAL ทั้งหมด",
           indent: true,
           cells: months.map((_, i) => (pendingVals[i] ? pendingCell : countCell(totalVals[i]))),
           total: allPending ? pendingCell : countCell(sumOrNull(totalVals)),
@@ -253,7 +280,9 @@ export function buildIndicatorRows(
       });
       const countSum = sumOrNull(counts);
       rows.push({
-        label: indicator.name,
+        nameLabel: indicator.name,
+        nameSpan: 2,
+        desc: indicator.criteria,
         bold: true,
         cells: statusCells,
         total:
@@ -265,7 +294,7 @@ export function buildIndicatorRows(
         valueKind: "status",
       });
       rows.push({
-        label: indicator.countField.label,
+        desc: indicator.countField.label,
         indent: true,
         cells: counts.map(countCell),
         total: countCell(countSum),
