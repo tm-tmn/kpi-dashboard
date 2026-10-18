@@ -6,13 +6,16 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
 } from "recharts";
-import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet } from "lucide-react";
-import { SERVICE_POINTS } from "@/lib/constants";
+import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer } from "lucide-react";
+import { SERVICE_POINTS, TAT_STAGE_META } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
   fiscalMonthLabels, yearlyTrend,
 } from "@/lib/aggregate";
+import {
+  TatRecordRow, availableTatYears, tatSeriesByPoint, tatMonthLabels,
+} from "@/lib/aggregate-tat";
 import { CountUp } from "@/components/CountUp";
 import { BentoCard } from "@/components/BentoCard";
 
@@ -40,6 +43,10 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [fiscalYear, setFiscalYear] = useState<number | null>(null);
 
+  const [tatRecords, setTatRecords] = useState<TatRecordRow[]>([]);
+  const [tatYear, setTatYear] = useState<number | null>(null);
+  const [tatError, setTatError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/records")
       .then((r) => r.json())
@@ -51,6 +58,16 @@ export default function DashboardPage() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
+
+    fetch("/api/tat")
+      .then((r) => r.json())
+      .then((data: { records?: TatRecordRow[]; error?: string }) => {
+        if (data.error) { setTatError(data.error); return; }
+        setTatRecords(data.records ?? []);
+        const years = availableTatYears(data.records ?? []);
+        if (years.length) setTatYear(years[years.length - 1]);
+      })
+      .catch((e) => setTatError(String(e)));
   }, []);
 
   const years = useMemo(() => availableFiscalYears(records), [records]);
@@ -72,6 +89,21 @@ export default function DashboardPage() {
 
   const sparklineData = trend.slice(-6).map((t) => ({ year: t.year, total: t.total }));
   const trendChartData = trend.map((t) => ({ year: String(t.year), total: t.total }));
+
+  const tatYears = useMemo(() => availableTatYears(tatRecords), [tatRecords]);
+  const tatMonths = tatMonthLabels();
+  const tatChartDataByPoint = useMemo(() => {
+    if (!tatYear) return [];
+    return SERVICE_POINTS.map((point) => {
+      const series = tatSeriesByPoint(tatRecords, tatYear, point);
+      const data = tatMonths.map((label, i) => {
+        const row: Record<string, string | number | null> = { month: label };
+        for (const s of series) row[s.stage] = s.values[i];
+        return row;
+      });
+      return { point, data };
+    });
+  }, [tatRecords, tatYear, tatMonths]);
 
   let content: React.ReactNode;
 
@@ -312,6 +344,77 @@ export default function DashboardPage() {
           ปี 2563-2568: ยอดรวมจากไฟล์เดิม (ไม่แยกจุดบริการ) · ปี 2569 เป็นต้นไป: คำนวณจากข้อมูลที่กรอกจริง
         </p>
       </BentoCard>
+
+      {/* TAT section */}
+      {tatError ? (
+        <BentoCard i={10} className="!p-5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-error">
+            <Timer size={15} />
+            โหลดข้อมูล TAT ไม่สำเร็จ
+          </div>
+          <div className="mt-1 text-xs text-base-content/50">{tatError}</div>
+        </BentoCard>
+      ) : tatYears.length > 0 && tatYear ? (
+        <>
+          <div className="mb-4 mt-8 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Timer size={16} className="text-base-content/40" />
+              <h2 className="text-sm font-semibold text-base-content">
+                ระยะเวลาการให้บริการเฉลี่ย (TAT) ช่วงเวลา 6.00-9.00 น.
+              </h2>
+            </div>
+            <select
+              className="select select-sm select-bordered w-28 bg-base-200/60"
+              value={tatYear}
+              onChange={(e) => setTatYear(Number(e.target.value))}
+            >
+              {tatYears.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {tatChartDataByPoint.map(({ point, data }, idx) => {
+              const meta = pointMeta(point);
+              return (
+                <BentoCard key={point} i={11 + idx} className="!p-5">
+                  <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-base-content">
+                    <span style={{ color: meta.color }}>{meta.short}</span>
+                    <span className="text-xs font-normal text-base-content/40">{point}</span>
+                  </h3>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={data}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} unit="น." />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} />
+                      <Legend wrapperStyle={{ fontSize: 10, color: "#8C98B8" }} />
+                      {Object.entries(TAT_STAGE_META).map(([stage, sMeta]) => (
+                        <Line
+                          key={stage}
+                          type="monotone"
+                          dataKey={stage}
+                          name={sMeta.short}
+                          stroke={sMeta.color}
+                          strokeWidth={sMeta.total ? 2.75 : 1.75}
+                          dot={{ r: 3, strokeWidth: 0, fill: sMeta.color }}
+                          connectNulls
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </BentoCard>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <BentoCard i={10} className="!p-5 mt-8 text-sm text-base-content/60">
+          ยังไม่มีข้อมูล TAT — เริ่มกรอกได้ที่หน้า{" "}
+          <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
+        </BentoCard>
+      )}
     </div>
     );
   }

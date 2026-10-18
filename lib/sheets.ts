@@ -1,5 +1,5 @@
-import { google } from "googleapis";
 import { PATIENT_TYPE_PAIRS } from "./constants";
+import { getSheetsClient, getSheetId } from "./google-client";
 
 const SHEET_NAME = "ข้อมูลดิบ";
 // Data rows start at row 2 (row 1 is the header).
@@ -14,33 +14,8 @@ export type SheetRecord = {
   count: number;
 };
 
-function getAuth() {
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
-    /\\n/g,
-    "\n"
-  );
-  if (!clientEmail || !privateKey) {
-    throw new Error(
-      "Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY env vars."
-    );
-  }
-  return new google.auth.JWT({
-    email: clientEmail,
-    key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-}
-
-function getSheetId(): string {
-  const id = process.env.GOOGLE_SHEET_ID;
-  if (!id) throw new Error("Missing GOOGLE_SHEET_ID env var.");
-  return id;
-}
-
 async function getClient() {
-  const auth = getAuth();
-  return google.sheets({ version: "v4", auth });
+  return getSheetsClient();
 }
 
 /** Read every data row from "ข้อมูลดิบ". Used by both the dashboard and

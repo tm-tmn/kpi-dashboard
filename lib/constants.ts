@@ -46,6 +46,27 @@ export const MONTH_ABBR_TH = [
   "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
 ];
 
+// TAT (turnaround time) stages for the 6.00-9.00 blood-draw service window.
+// Same 4 ขั้นตอน for every จุดบริการ. "SQ Create - ABS Close" is the overall
+// end-to-end time (SQ = queue ticket, ABS Close = sample fully closed out).
+export const TAT_STAGES = [
+  "ออกคิว - เรียกคิว",
+  "เรียกคิว - เช็คอิน",
+  "เก็บตัวอย่าง - ปิดงาน",
+  "รวมทั้งหมด (ออกคิว - ปิดงาน)",
+] as const;
+
+export type TatStage = (typeof TAT_STAGES)[number];
+
+// Short legend labels + a highlight flag for the "total" stage (the one the
+// original Looker charts drew in green, bolder than the others).
+export const TAT_STAGE_META: Record<TatStage, { short: string; color: string; total?: boolean }> = {
+  "ออกคิว - เรียกคิว": { short: "ออกคิว→เรียกคิว", color: "#3DA9FC" },
+  "เรียกคิว - เช็คอิน": { short: "เรียกคิว→เช็คอิน", color: "#F6A75E" },
+  "เก็บตัวอย่าง - ปิดงาน": { short: "เก็บตัวอย่าง→ปิดงาน", color: "#B794F6" },
+  "รวมทั้งหมด (ออกคิว - ปิดงาน)": { short: "รวมทั้งหมด", color: "#34D399", total: true },
+};
+
 // Fiscal year (Thai government convention): Oct–Sep, named after the
 // calendar year it ends in. e.g. Oct 2568–Sep 2569 = ปีงบประมาณ 2569.
 export function fiscalYearOf(calendarYear: number, month1to12: number): number {

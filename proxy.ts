@@ -7,9 +7,11 @@ import { SESSION_COOKIE, expectedSessionToken } from "@/lib/auth";
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const needsAuth =
-    pathname.startsWith("/entry") ||
-    (pathname.startsWith("/api/records") && req.method === "POST");
+  const isWriteApi =
+    (pathname.startsWith("/api/records") || pathname.startsWith("/api/tat")) &&
+    req.method === "POST";
+
+  const needsAuth = pathname.startsWith("/entry") || isWriteApi;
 
   if (!needsAuth) {
     return NextResponse.next();
@@ -23,7 +25,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/api/records")) {
+  if (isWriteApi) {
     return NextResponse.json({ error: "ต้องเข้าสู่ระบบก่อนบันทึกข้อมูล" }, { status: 401 });
   }
 
@@ -33,5 +35,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/entry", "/entry/:path*", "/api/records"],
+  matcher: ["/entry", "/entry/:path*", "/api/records", "/api/tat"],
 };
