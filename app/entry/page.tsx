@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Timer } from "lucide-react";
+import { Users, Timer, ShieldCheck } from "lucide-react";
 import { AttendanceEntryForm } from "@/components/entry/AttendanceEntryForm";
 import { TatEntryForm } from "@/components/entry/TatEntryForm";
+import { KpiEntryForm } from "@/components/entry/KpiEntryForm";
 
 const TABS = [
   { id: "attendance", label: "จำนวนผู้รับบริการ", icon: Users },
   { id: "tat", label: "TAT (ระยะเวลาให้บริการ)", icon: Timer },
+  { id: "kpi", label: "ตัวชี้วัดคุณภาพ", icon: ShieldCheck },
 ] as const;
 
 export default function EntryPage() {
@@ -38,7 +40,9 @@ export default function EntryPage() {
         ))}
       </div>
 
-      {tab === "attendance" ? <AttendanceEntryForm /> : <TatEntryForm />}
+      {tab === "attendance" && <AttendanceEntryForm />}
+      {tab === "tat" && <TatEntryForm />}
+      {tab === "kpi" && <KpiEntryForm />}
     </div>
   );
 }

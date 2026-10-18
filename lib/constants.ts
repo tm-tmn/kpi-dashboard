@@ -67,6 +67,111 @@ export const TAT_STAGE_META: Record<TatStage, { short: string; color: string; to
   "รวมทั้งหมด (ออกคิว - ปิดงาน)": { short: "รวมทั้งหมด", color: "#34D399", total: true },
 };
 
+// Quality indicators ("ตัวชี้วัดคุณภาพหน่วยเจาะเลือดเก็บสิ่งส่งตรวจและ POCT"),
+// filled in once a month. Mirrors the 6 indicators in the hospital's own
+// Excel form. "criteria" is a placeholder — the exact เกณฑ์ประเมิน wording/
+// thresholds from the original file should be double-checked and edited in
+// here directly; it is NOT guaranteed to match the hospital's real standard.
+export type KpiField = { key: string; label: string };
+
+export type KpiIndicator =
+  | {
+      id: string;
+      name: string;
+      criteria: string;
+      kind: "ratio_auto"; // denominator auto-pulled from attendance total, read-only
+      numerator: KpiField;
+    }
+  | {
+      id: string;
+      name: string;
+      criteria: string;
+      kind: "ratio_editable"; // denominator pre-filled from attendance total but editable
+      numerator: KpiField;
+      denominator: KpiField;
+    }
+  | {
+      id: string;
+      name: string;
+      criteria: string;
+      kind: "ratio_pair"; // both numerator and denominator entered manually
+      numerator: KpiField;
+      denominator: KpiField;
+    }
+  | {
+      id: string;
+      name: string;
+      criteria: string;
+      kind: "direct_percent"; // a single % value entered directly
+      field: KpiField;
+    }
+  | {
+      id: string;
+      name: string;
+      criteria: string;
+      kind: "pm"; // PM device groups: success count, total count, "pending contract" flag
+      groups: { key: string; label: string }[];
+    }
+  | {
+      id: string;
+      name: string;
+      criteria: string;
+      kind: "incident"; // incident count (PASS if 0) + a yes/no checkbox
+      countField: KpiField;
+      checkboxField: KpiField;
+    };
+
+export const KPI_INDICATORS: KpiIndicator[] = [
+  {
+    id: "rejection",
+    name: "อัตราการปฏิเสธสิ่งส่งตรวจ",
+    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    kind: "ratio_auto",
+    numerator: { key: "rejection_count", label: "จำนวนอุบัติการณ์การปฏิเสธสิ่งส่งตรวจ" },
+  },
+  {
+    id: "pm",
+    name: "PM เครื่องจัดเตรียมหลอดเลือดอัตโนมัติ",
+    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    kind: "pm",
+    groups: [
+      { key: "select", label: "SELECT" },
+      { key: "henm", label: "HEN M" },
+    ],
+  },
+  {
+    id: "tat30",
+    name: "อัตราผู้รับบริการที่รอคอยไม่เกิน 30 นาที",
+    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    kind: "ratio_editable",
+    numerator: { key: "tat30_count", label: "จำนวนผู้รับบริการที่รอคอยไม่เกิน 30 นาที" },
+    denominator: { key: "tat30_denominator", label: "จำนวนผู้รับบริการทั้งหมด (TAT)" },
+  },
+  {
+    id: "satisfaction",
+    name: "ความพึงพอใจของผู้รับบริการ",
+    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    kind: "direct_percent",
+    field: { key: "satisfaction_pct", label: "ร้อยละความพึงพอใจ" },
+  },
+  {
+    id: "complaint",
+    name: "เรื่องร้องเรียนได้รับการแก้ไข",
+    criteria: "(ระบุเกณฑ์ประเมินตามไฟล์ต้นฉบับ — แก้ไขข้อความนี้ได้ใน lib/constants.ts)",
+    kind: "ratio_pair",
+    numerator: { key: "complaint_resolved", label: "จำนวนเรื่องร้องเรียนที่ได้รับการแก้ไข" },
+    denominator: { key: "complaint_total", label: "จำนวนเรื่องร้องเรียนทั้งหมด" },
+  },
+  {
+    id: "safety",
+    name: "ความปลอดภัยทางห้องปฏิบัติการ",
+    criteria: "PASS เมื่อไม่มีอุบัติการณ์ (0 ครั้ง) ในเดือนนั้น",
+    kind: "incident",
+    countField: { key: "safety_incident_count", label: "จำนวนอุบัติการณ์ด้านความปลอดภัย" },
+    checkboxField: { key: "safety_review_done", label: "รอบทบทวนสำเร็จ" },
+  },
+];
+
 // Fiscal year (Thai government convention): Oct–Sep, named after the
 // calendar year it ends in. e.g. Oct 2568–Sep 2569 = ปีงบประมาณ 2569.
 export function fiscalYearOf(calendarYear: number, month1to12: number): number {

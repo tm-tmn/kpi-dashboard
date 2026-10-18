@@ -6,8 +6,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
 } from "recharts";
-import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer } from "lucide-react";
-import { SERVICE_POINTS, TAT_STAGE_META } from "@/lib/constants";
+import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
+import { SERVICE_POINTS, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
@@ -16,6 +16,9 @@ import {
 import {
   TatRecordRow, availableTatYears, tatSeriesByPoint, tatMonthLabels,
 } from "@/lib/aggregate-tat";
+import {
+  KpiRecordRow, kpiMonthResult, kpiYearTrend,
+} from "@/lib/aggregate-kpi";
 import { CountUp } from "@/components/CountUp";
 import { BentoCard } from "@/components/BentoCard";
 
@@ -47,6 +50,9 @@ export default function DashboardPage() {
   const [tatYear, setTatYear] = useState<number | null>(null);
   const [tatError, setTatError] = useState<string | null>(null);
 
+  const [kpiRecords, setKpiRecords] = useState<KpiRecordRow[]>([]);
+  const [kpiError, setKpiError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/records")
       .then((r) => r.json())
@@ -68,6 +74,14 @@ export default function DashboardPage() {
         if (years.length) setTatYear(years[years.length - 1]);
       })
       .catch((e) => setTatError(String(e)));
+
+    fetch("/api/kpi")
+      .then((r) => r.json())
+      .then((data: { records?: KpiRecordRow[]; error?: string }) => {
+        if (data.error) { setKpiError(data.error); return; }
+        setKpiRecords(data.records ?? []);
+      })
+      .catch((e) => setKpiError(String(e)));
   }, []);
 
   const years = useMemo(() => availableFiscalYears(records), [records]);
@@ -104,6 +118,35 @@ export default function DashboardPage() {
       return { point, data };
     });
   }, [tatRecords, tatYear, tatMonths]);
+
+  // Latest (year, month) that has any KPI row, so the score tiles show the
+  // most recently filled-in month rather than requiring another selector.
+  const kpiLatestMonth = useMemo(() => {
+    if (!kpiRecords.length) return null;
+    return kpiRecords.reduce(
+      (latest, r) => {
+        const key = r.year * 12 + r.month;
+        return key > latest.key ? { key, year: r.year, month: r.month } : latest;
+      },
+      { key: -Infinity, year: 0, month: 0 }
+    );
+  }, [kpiRecords]);
+
+  const kpiResults = useMemo(() => {
+    if (!kpiLatestMonth) return [];
+    return KPI_INDICATORS.map((indicator) => ({
+      indicator,
+      result: kpiMonthResult(indicator, kpiRecords, records, kpiLatestMonth.year, kpiLatestMonth.month),
+    }));
+  }, [kpiRecords, records, kpiLatestMonth]);
+
+  const kpiTrendByIndicator = useMemo(() => {
+    if (!fiscalYear) return [];
+    return KPI_INDICATORS.map((indicator) => ({
+      indicator,
+      data: kpiYearTrend(indicator, kpiRecords, records, fiscalYear),
+    }));
+  }, [kpiRecords, records, fiscalYear]);
 
   let content: React.ReactNode;
 
@@ -412,6 +455,106 @@ export default function DashboardPage() {
       ) : (
         <BentoCard i={10} className="!p-5 mt-8 text-sm text-base-content/60">
           ยังไม่มีข้อมูล TAT — เริ่มกรอกได้ที่หน้า{" "}
+          <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
+        </BentoCard>
+      )}
+
+      {/* KPI / quality-indicators section */}
+      {kpiError ? (
+        <BentoCard i={16} className="!p-5 mt-8">
+          <div className="flex items-center gap-2 text-sm font-semibold text-error">
+            <ShieldCheck size={15} />
+            โหลดข้อมูลตัวชี้วัดคุณภาพไม่สำเร็จ
+          </div>
+          <div className="mt-1 text-xs text-base-content/50">{kpiError}</div>
+        </BentoCard>
+      ) : kpiLatestMonth ? (
+        <>
+          <div className="mb-4 mt-8 flex items-center gap-2">
+            <ShieldCheck size={16} className="text-base-content/40" />
+            <h2 className="text-sm font-semibold text-base-content">
+              ตัวชี้วัดคุณภาพหน่วยเจาะเลือด เก็บสิ่งส่งตรวจ และ POCT
+            </h2>
+            <span className="text-xs text-base-content/40">
+              · ล่าสุด {MONTH_NAMES_TH[kpiLatestMonth.month - 1]} {kpiLatestMonth.year}
+            </span>
+          </div>
+
+          {/* Score tiles */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {kpiResults.map(({ indicator, result }, idx) => (
+              <BentoCard key={indicator.id} i={17 + idx} className="!p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-base-content">{indicator.name}</h3>
+                  {result.status && (
+                    <span
+                      className={`flex items-center gap-1 rounded-field px-2 py-0.5 text-[11px] font-semibold ${
+                        result.status === "pass" ? "bg-success/15 text-success" : "bg-error/15 text-error"
+                      }`}
+                    >
+                      {result.status === "pass" ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                      {result.status === "pass" ? "PASS" : "FAIL"}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 stat-figure-num text-3xl font-bold text-base-content">
+                  {result.pct == null ? "-" : `${result.pct.toFixed(1)}%`}
+                </div>
+                {result.detail.length > 0 && (
+                  <div className="mt-3 space-y-1 border-t border-white/8 pt-2">
+                    {result.detail.map((d) => (
+                      <div key={d.label} className="flex items-center justify-between text-xs">
+                        <span className="text-base-content/50">{d.label}</span>
+                        <span
+                          className={
+                            d.status === "fail"
+                              ? "text-error"
+                              : d.status === "pass"
+                                ? "text-success"
+                                : "text-base-content/50"
+                          }
+                        >
+                          {d.status === "pending" ? "รอทำสัญญา" : d.pct == null ? "-" : `${d.pct.toFixed(0)}%`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </BentoCard>
+            ))}
+          </div>
+
+          {/* Trend lines */}
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {kpiTrendByIndicator.map(({ indicator, data }, idx) => (
+              <BentoCard key={indicator.id} i={23 + idx} className="!p-5">
+                <h3 className="mb-1 text-xs font-semibold text-base-content/70">{indicator.name}</h3>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} unit="%" />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Line
+                      type="monotone"
+                      dataKey="pct"
+                      stroke="var(--color-opd)"
+                      strokeWidth={2.25}
+                      dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
+                      connectNulls
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </BentoCard>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-base-content/35">
+            เกณฑ์ประเมินของแต่ละตัวชี้วัดเป็นค่าเริ่มต้น — ปรับข้อความเกณฑ์จริงได้ที่หน้ากรอกข้อมูล (ตัวชี้วัดคุณภาพ)
+          </p>
+        </>
+      ) : (
+        <BentoCard i={16} className="!p-5 mt-8 text-sm text-base-content/60">
+          ยังไม่มีข้อมูลตัวชี้วัดคุณภาพ — เริ่มกรอกได้ที่หน้า{" "}
           <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
         </BentoCard>
       )}

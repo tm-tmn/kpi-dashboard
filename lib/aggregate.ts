@@ -25,8 +25,10 @@ export function availableFiscalYears(records: RecordRow[]): number[] {
   return Array.from(set).sort((a, b) => a - b);
 }
 
-/** Sum of `count` for a given (year, month), across all points/types. */
-function monthTotal(records: RecordRow[], year: number, month: number): number {
+/** Sum of `count` for a given (year, month), across all points/types.
+ * Exported so other domains (e.g. KPI indicators) can pull the attendance
+ * total for a month without duplicating the filter/reduce. */
+export function monthTotal(records: RecordRow[], year: number, month: number): number {
   return records
     .filter((r) => r.year === year && r.month === month)
     .reduce((s, r) => s + r.count, 0);

@@ -1,0 +1,371 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearOf } from "@/lib/constants";
+import { monthTotal, RecordRow } from "@/lib/aggregate";
+import { kpiMonthResult, KpiRecordRow } from "@/lib/aggregate-kpi";
+import { CheckCircle2, AlertCircle, Loader2, Save, ShieldCheck, Info } from "lucide-react";
+import { BentoCard } from "@/components/BentoCard";
+import { KpiYearTable } from "@/components/entry/KpiYearTable";
+
+const now = new Date();
+const CURRENT_BE_YEAR = now.getFullYear() + 543;
+const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_BE_YEAR - 1 + i);
+
+const keyOf = (indicator: string, field: string) => `${indicator}|||${field}`;
+
+export function KpiEntryForm() {
+  const [year, setYear] = useState(CURRENT_BE_YEAR);
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [records, setRecords] = useState<KpiRecordRow[]>([]);
+  const [attendance, setAttendance] = useState<RecordRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/kpi").then((r) => r.json()),
+      fetch("/api/records").then((r) => r.json()),
+    ])
+      .then(([kpiData, recData]: [{ records?: KpiRecordRow[]; error?: string }, { records?: RecordRow[]; error?: string }]) => {
+        if (kpiData.error) {
+          setStatus({ type: "err", text: `โหลดข้อมูลไม่สำเร็จ: ${kpiData.error}` });
+          return;
+        }
+        setRecords(kpiData.records ?? []);
+        setAttendance(recData.records ?? []);
+      })
+      .catch((e) => setStatus({ type: "err", text: String(e) }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const attendanceTotal = useMemo(() => monthTotal(attendance, year, month), [attendance, year, month]);
+
+  // Raw string value for a field: saved value overlaid with any in-progress edit.
+  function rawValue(indicator: string, field: string, fallback = ""): string {
+    const k = keyOf(indicator, field);
+    if (k in edits) return edits[k];
+    const rec = records.find(
+      (r) => r.year === year && r.month === month && r.indicator === indicator && r.field === field
+    );
+    return rec?.value ?? fallback;
+  }
+  function boolValue(indicator: string, field: string): boolean {
+    const v = rawValue(indicator, field);
+    return v === "TRUE" || v === "true" || v === "1";
+  }
+  function setField(indicator: string, field: string, value: string) {
+    setEdits((prev) => ({ ...prev, [keyOf(indicator, field)]: value }));
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEdits({});
+    setStatus(null);
+  }, [year, month]);
+
+  // Build a "draft" records array (saved + in-progress edits) so the live
+  // computed %/status readouts update as the user types, before saving.
+  const draftRecords: KpiRecordRow[] = useMemo(() => {
+    const others = records.filter((r) => !(r.year === year && r.month === month));
+    const current = new Map<string, string>();
+    for (const r of records) {
+      if (r.year === year && r.month === month) current.set(keyOf(r.indicator, r.field), r.value);
+    }
+    for (const [k, v] of Object.entries(edits)) current.set(k, v);
+    const merged = Array.from(current.entries()).map(([k, value]) => {
+      const [indicator, field] = k.split("|||");
+      return { year, month, indicator, field, value };
+    });
+    return [...others, ...merged];
+  }, [records, edits, year, month]);
+
+  async function handleSubmit() {
+    setSaving(true);
+    setStatus(null);
+    const monthRows = draftRecords.filter((r) => r.year === year && r.month === month);
+    const entries = monthRows.map((r) => ({ indicator: r.indicator, field: r.field, value: r.value }));
+    try {
+      const res = await fetch("/api/kpi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year, month, entries }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
+      setStatus({ type: "ok", text: `บันทึกตัวชี้วัดคุณภาพเดือน ${MONTH_NAMES_TH[month - 1]} ${year} เรียบร้อย` });
+      setRecords(draftRecords);
+      setEdits({});
+    } catch (e) {
+      setStatus({ type: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="mx-auto max-w-3xl space-y-4">
+        <BentoCard i={0} className="!p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-base-content/50">ปี พ.ศ.</label>
+              <select
+                className="select select-bordered select-sm bg-base-200/60"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+              >
+                {YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-base-content/50">เดือน</label>
+              <select
+                className="select select-bordered select-sm bg-base-200/60"
+                value={month}
+                onChange={(e) => setMonth(Number(e.target.value))}
+              >
+                {MONTH_NAMES_TH.map((m, i) => (
+                  <option key={m} value={i + 1}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div className="badge badge-ghost border-white/10 text-xs text-base-content/50">
+              ปีงบประมาณ {fiscalYearOf(year, month)}
+            </div>
+            {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
+          </div>
+        </BentoCard>
+
+        {status && (
+          <div
+            role="alert"
+            className={`alert border-0 text-sm ${
+              status.type === "ok" ? "bg-success/15 text-success" : "bg-error/15 text-error"
+            }`}
+          >
+            {status.type === "ok" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+            <span>{status.text}</span>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {KPI_INDICATORS.map((indicator, idx) => {
+            const result = kpiMonthResult(indicator, draftRecords, attendance, year, month);
+            return (
+              <BentoCard key={indicator.id} i={idx + 1} className="!p-0 overflow-hidden">
+                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-white/8 px-5 py-3">
+                  <div>
+                    <div className="text-sm font-semibold text-base-content">{indicator.name}</div>
+                    <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-base-content/40">
+                      <Info size={12} className="mt-0.5 shrink-0" />
+                      {indicator.criteria}
+                    </div>
+                  </div>
+                  {result.pct != null && (
+                    <div
+                      className={`stat-figure-num rounded-field px-2.5 py-1 text-sm font-bold ${
+                        result.status === "fail"
+                          ? "bg-error/15 text-error"
+                          : result.status === "pass"
+                            ? "bg-success/15 text-success"
+                            : "bg-primary/10 text-primary"
+                      }`}
+                    >
+                      {result.pct.toFixed(1)}%
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5">
+                  {indicator.kind === "ratio_auto" && (
+                    <div className="flex flex-wrap items-end gap-4">
+                      <NumberField
+                        label={indicator.numerator.label}
+                        value={rawValue(indicator.id, indicator.numerator.key, "0")}
+                        onChange={(v) => setField(indicator.id, indicator.numerator.key, v)}
+                      />
+                      <ReadonlyField label="จำนวนผู้รับบริการทั้งหมด (ดึงอัตโนมัติจากฐานข้อมูลที่ 1)" value={attendanceTotal.toLocaleString()} />
+                    </div>
+                  )}
+
+                  {indicator.kind === "ratio_editable" && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-end gap-4">
+                        <NumberField
+                          label={indicator.numerator.label}
+                          value={rawValue(indicator.id, indicator.numerator.key, "0")}
+                          onChange={(v) => setField(indicator.id, indicator.numerator.key, v)}
+                        />
+                        <NumberField
+                          label={indicator.denominator.label}
+                          value={rawValue(indicator.id, indicator.denominator.key, String(attendanceTotal))}
+                          onChange={(v) => setField(indicator.id, indicator.denominator.key, v)}
+                        />
+                      </div>
+                      <p className="text-[11px] text-base-content/35">
+                        ค่าตั้งต้นดึงจากฐานข้อมูลที่ 1 ({attendanceTotal.toLocaleString()} คน) แต่แก้ไขได้ —
+                        เพราะตัวเลขในไฟล์เดิมของตัวชี้วัดนี้ไม่ตรงกับยอดรวมผู้รับบริการทุกเดือนเป๊ะเหมือนตัวชี้วัดข้อ 1
+                      </p>
+                    </div>
+                  )}
+
+                  {indicator.kind === "ratio_pair" && (
+                    <div className="flex flex-wrap items-end gap-4">
+                      <NumberField
+                        label={indicator.numerator.label}
+                        value={rawValue(indicator.id, indicator.numerator.key, "0")}
+                        onChange={(v) => setField(indicator.id, indicator.numerator.key, v)}
+                      />
+                      <NumberField
+                        label={indicator.denominator.label}
+                        value={rawValue(indicator.id, indicator.denominator.key, "0")}
+                        onChange={(v) => setField(indicator.id, indicator.denominator.key, v)}
+                      />
+                    </div>
+                  )}
+
+                  {indicator.kind === "direct_percent" && (
+                    <NumberField
+                      label={indicator.field.label}
+                      value={rawValue(indicator.id, indicator.field.key, "0")}
+                      unit="%"
+                      onChange={(v) => setField(indicator.id, indicator.field.key, v)}
+                    />
+                  )}
+
+                  {indicator.kind === "pm" && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {indicator.groups.map((g) => {
+                        const pending = boolValue(indicator.id, `${g.key}_pending`);
+                        const groupResult = result.detail.find((d) => d.label === g.label);
+                        return (
+                          <div key={g.key} className="rounded-field border border-white/8 p-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-xs font-semibold text-base-content/80">{g.label}</span>
+                              {groupResult?.pct != null && (
+                                <span className="stat-figure-num text-xs font-bold text-base-content/70">
+                                  {groupResult.pct.toFixed(0)}%
+                                </span>
+                              )}
+                              {pending && <span className="badge badge-ghost text-[10px]">รอทำสัญญา</span>}
+                            </div>
+                            <label className="mb-2 flex items-center gap-2 text-[11px] text-base-content/50">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-xs"
+                                checked={pending}
+                                onChange={(e) => setField(indicator.id, `${g.key}_pending`, e.target.checked ? "TRUE" : "FALSE")}
+                              />
+                              รอทำสัญญา (ยังไม่มีเครื่อง/ยังไม่ได้ PM)
+                            </label>
+                            <div className={`flex gap-3 ${pending ? "pointer-events-none opacity-40" : ""}`}>
+                              <NumberField
+                                label="ผ่านเกณฑ์"
+                                compact
+                                value={rawValue(indicator.id, `${g.key}_success`, "0")}
+                                onChange={(v) => setField(indicator.id, `${g.key}_success`, v)}
+                              />
+                              <NumberField
+                                label="ทั้งหมด"
+                                compact
+                                value={rawValue(indicator.id, `${g.key}_total`, "0")}
+                                onChange={(v) => setField(indicator.id, `${g.key}_total`, v)}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {indicator.kind === "incident" && (
+                    <div className="flex flex-wrap items-end gap-6">
+                      <NumberField
+                        label={indicator.countField.label}
+                        value={rawValue(indicator.id, indicator.countField.key, "0")}
+                        onChange={(v) => setField(indicator.id, indicator.countField.key, v)}
+                      />
+                      <label className="flex items-center gap-2 text-sm text-base-content/70">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm"
+                          checked={boolValue(indicator.id, indicator.checkboxField.key)}
+                          onChange={(e) =>
+                            setField(indicator.id, indicator.checkboxField.key, e.target.checked ? "TRUE" : "FALSE")
+                          }
+                        />
+                        <ShieldCheck size={14} className="text-base-content/40" />
+                        {indicator.checkboxField.label}
+                      </label>
+                      {result.status && (
+                        <span
+                          className={`badge border-0 ${
+                            result.status === "pass" ? "bg-success/15 text-success" : "bg-error/15 text-error"
+                          }`}
+                        >
+                          {result.status === "pass" ? "PASS" : "FAIL"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </BentoCard>
+            );
+          })}
+        </div>
+
+        <div className="glass-panel sticky bottom-4 flex items-center justify-between rounded-box p-4">
+          <div className="text-sm text-base-content/60">กรอกครบ 6 ตัวชี้วัดแล้วกดบันทึก</div>
+          <button
+            onClick={handleSubmit}
+            disabled={saving || loading}
+            className="btn btn-primary gap-2 shadow-lg shadow-primary/20"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {saving ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
+          </button>
+        </div>
+      </div>
+
+      <KpiYearTable records={records} attendance={attendance} />
+    </div>
+  );
+}
+
+function NumberField({
+  label, value, onChange, unit, compact,
+}: { label: string; value: string; onChange: (v: string) => void; unit?: string; compact?: boolean }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs text-base-content/50">{label}</label>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          className={`input input-sm input-bordered bg-base-200/60 text-right ${compact ? "w-20" : "w-28"}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {unit && <span className="text-xs text-base-content/40">{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+function ReadonlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs text-base-content/50">{label}</label>
+      <div className="input input-sm w-32 cursor-not-allowed items-center bg-base-200/30 text-right text-base-content/50">
+        {value}
+      </div>
+    </div>
+  );
+}
