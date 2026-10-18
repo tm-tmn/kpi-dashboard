@@ -574,7 +574,10 @@ export default function DashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} unit="น." />
-                      <Tooltip contentStyle={chartColors.tooltip} />
+                      <Tooltip
+                        contentStyle={chartColors.tooltip}
+                        formatter={(value, name) => [`${Number(value).toFixed(1)} นาที`, name]}
+                      />
                       <Legend wrapperStyle={{ fontSize: 10, color: chartColors.axisTick }} />
                       {Object.entries(TAT_STAGE_META).map(([stage, sMeta]) => (
                         <Line
@@ -734,10 +737,14 @@ export default function DashboardPage() {
                         tickLine={false}
                         unit="%"
                       />
-                      <Tooltip contentStyle={chartColors.tooltip} />
+                      <Tooltip
+                        contentStyle={chartColors.tooltip}
+                        formatter={(value) => [`${Number(value).toFixed(indicator.decimals ?? 1)}%`, indicator.shortName ?? indicator.name]}
+                      />
                       <Line
                         type="monotone"
                         dataKey="pct"
+                        name={indicator.shortName ?? indicator.name}
                         stroke="var(--color-opd)"
                         strokeWidth={2.25}
                         dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
