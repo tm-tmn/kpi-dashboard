@@ -1,0 +1,96 @@
+# ขั้นตอนตั้งค่า (ทำครั้งเดียว)
+
+ทำตามลำดับ 1 → 2 → 3 → 4 ใช้เวลาประมาณ 15-20 นาที
+
+---
+
+## 1) เตรียม Google Sheet
+
+1. เปิดไฟล์ Google Sheet ที่แปลงจาก template แล้ว (ชีต "ข้อมูลดิบ" ต้องมีอยู่)
+2. คัดลอก **ID ของ Sheet** จาก URL — อยู่ระหว่าง `/d/` กับ `/edit`
+
+   ```
+   https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^ อันนี้คือ ID
+   ```
+3. เก็บ ID นี้ไว้ก่อน จะใช้ในขั้นตอนที่ 3
+
+---
+
+## 2) สร้าง Google Service Account (บัญชีสำหรับให้เว็บเข้าถึง Sheet)
+
+Service Account คือ "บัญชีหุ่นยนต์" ที่ Google ออกให้ เพื่อให้โปรแกรม (เว็บของเรา)
+อ่าน/เขียน Google Sheet ได้โดยไม่ต้องมีใคร login ทุกครั้ง
+
+1. ไปที่ [Google Cloud Console](https://console.cloud.google.com/)
+2. สร้างโปรเจกต์ใหม่ (มุมซ้ายบน → New Project) ตั้งชื่ออะไรก็ได้ เช่น `kpi-dashboard`
+3. เปิดใช้งาน **Google Sheets API**:
+   - ไปที่เมนู "APIs & Services" → "Library"
+   - ค้นหา "Google Sheets API" → กด Enable
+4. สร้าง Service Account:
+   - ไปที่ "APIs & Services" → "Credentials"
+   - กด "Create Credentials" → "Service account"
+   - ตั้งชื่ออะไรก็ได้ เช่น `kpi-dashboard-bot` → Create and Continue → Done
+5. สร้างคีย์ (key) สำหรับ Service Account นี้:
+   - คลิกเข้าไปที่ Service Account ที่เพิ่งสร้าง
+   - แท็บ "Keys" → "Add Key" → "Create new key" → เลือก **JSON** → Create
+   - ไฟล์ `.json` จะถูกดาวน์โหลดลงเครื่อง **เก็บไฟล์นี้ให้ดี ห้ามแชร์ให้ใคร**
+6. เปิดไฟล์ JSON ที่ดาวน์โหลดมาด้วย Notepad จะเจอ 2 ค่าที่ต้องใช้:
+   - `client_email` → อีเมลยาวๆ ลงท้ายด้วย `.iam.gserviceaccount.com`
+   - `private_key` → ข้อความยาวที่ขึ้นต้นด้วย `-----BEGIN PRIVATE KEY-----`
+
+---
+
+## 3) แชร์สิทธิ์แก้ไข Google Sheet ให้ Service Account
+
+1. เปิด Google Sheet ของคุณ
+2. กดปุ่ม "แชร์" (Share) มุมขวาบน
+3. วาง `client_email` จากขั้นตอนก่อนหน้า (เช่น `kpi-dashboard-bot@xxx.iam.gserviceaccount.com`)
+4. ตั้งสิทธิ์เป็น **ผู้แก้ไข (Editor)**
+5. กดส่ง (ไม่ต้องติ๊ก "แจ้งเตือน" ก็ได้ เพราะเป็นบัญชีหุ่นยนต์)
+
+---
+
+## 4) ตั้งค่า Environment Variables แล้ว Deploy ขึ้น Vercel
+
+### ทดสอบในเครื่องก่อน (ไม่บังคับ)
+
+สร้างไฟล์ `.env.local` ในโฟลเดอร์โปรเจกต์:
+
+```
+GOOGLE_SHEET_ID=ใส่ค่าจากขั้นตอนที่ 1
+GOOGLE_SERVICE_ACCOUNT_EMAIL=ใส่ client_email จากขั้นตอนที่ 2
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="ใส่ private_key ทั้งก้อน รวม -----BEGIN...-----END----- ด้วย"
+```
+
+> หมายเหตุ: `private_key` มีตัวขึ้นบรรทัดใหม่ (`\n`) อยู่ในนั้น ให้คัดลอกมาทั้งหมดตามที่อยู่ในไฟล์ JSON เป๊ะๆ (ใส่ในเครื่องหมายคำพูดเดียว)
+
+รันคำสั่ง:
+```bash
+npm install
+npm run dev
+```
+เปิด http://localhost:3000 — ถ้าเห็น Dashboard ขึ้น (หรือข้อความ "ยังไม่มีข้อมูล") แปลว่าเชื่อมต่อสำเร็จ
+
+### Deploy ขึ้น Vercel
+
+1. อัปโค้ดทั้งโฟลเดอร์ขึ้น GitHub (สร้าง repo ใหม่ แล้ว push ขึ้นไป)
+2. ไปที่ [vercel.com](https://vercel.com) → Sign in ด้วย GitHub
+3. "Add New..." → "Project" → เลือก repo ที่เพิ่ง push
+4. ก่อนกด Deploy ให้เปิดส่วน "Environment Variables" แล้วใส่ 3 ค่าเดียวกับใน `.env.local`:
+   - `GOOGLE_SHEET_ID`
+   - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+5. กด **Deploy** รอประมาณ 1-2 นาที
+6. เสร็จแล้วจะได้ลิงก์เว็บ เช่น `https://kpi-dashboard-xxxx.vercel.app` — เปิดได้จากที่ไหนก็ได้ ไม่ต้อง login
+
+---
+
+## หลังจากนี้
+
+- กรอกข้อมูลเดือนใหม่ที่หน้า `/entry` ของเว็บ → ข้อมูลจะเข้า Google Sheet ชีต "ข้อมูลดิบ" ทันที
+- หน้า Dashboard (`/`) จะอัปเดตข้อมูลใหม่ทุกครั้งที่มีคนเปิดหน้าเว็บ (ดึงสดจาก Sheet ไม่มีแคช)
+- แก้ตัวเลขตรงใน Google Sheet เองก็ได้เหมือนเดิม เว็บจะอ่านค่าล่าสุดเสมอ
+- ถ้าโครงสร้างคอลัมน์ใน Sheet เปลี่ยน (ชื่อชีต, ชื่อคอลัมน์) ต้องแจ้งให้แก้โค้ดใน `lib/sheets.ts` ให้ตรงกันด้วย
+
+ติดขัดตรงไหน ส่ง error message ที่เจอมาได้เลย ช่วยไล่ให้
