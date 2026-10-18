@@ -21,14 +21,10 @@ import {
 } from "@/lib/aggregate-kpi";
 import { CountUp } from "@/components/CountUp";
 import { BentoCard } from "@/components/BentoCard";
-
-const TOOLTIP_STYLE = {
-  background: "#0F1524",
-  border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: 12,
-  fontSize: 12,
-  color: "#E7EAF3",
-};
+import { StatusBanner } from "@/components/StatusBanner";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { LiveClock } from "@/components/LiveClock";
+import { useTheme } from "@/lib/useTheme";
 
 // Ranked horizontal bar list — replaces the old per-point pie/donut for
 // "share by ประเภทผู้รับบริการ". A pie's slice labels collide once there
@@ -57,7 +53,7 @@ function TypeBreakdownBars({
             <div className="w-10 shrink-0 text-right text-[11px] font-semibold" style={{ color }}>
               {pct.toFixed(0)}%
             </div>
-            <div className="col-span-3 h-1.5 overflow-hidden rounded-full bg-white/6">
+            <div className="col-span-3 h-1.5 overflow-hidden rounded-full bg-base-content/6">
               <div
                 className="h-full rounded-full transition-[width]"
                 style={{ width: `${widthPct}%`, background: color }}
@@ -81,6 +77,26 @@ function Skeleton() {
 }
 
 export default function DashboardPage() {
+  const { mode } = useTheme();
+  const isLight = mode === "light";
+  // Recharts needs plain color strings (not CSS vars) for tooltip/axis/grid,
+  // so the dark/light pair lives here instead of in globals.css.
+  const chartColors = useMemo(
+    () => ({
+      tooltip: {
+        background: isLight ? "#FFFFFF" : "#0F1524",
+        border: isLight ? "1px solid rgba(15,21,36,0.08)" : "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 12,
+        fontSize: 12,
+        color: isLight ? "#1A2033" : "#E7EAF3",
+      },
+      axisTick: isLight ? "#64748B" : "#8C98B8",
+      grid: isLight ? "rgba(15,21,36,0.09)" : "rgba(255,255,255,0.06)",
+      cursor: isLight ? "rgba(15,21,36,0.05)" : "rgba(255,255,255,0.04)",
+    }),
+    [isLight]
+  );
+
   const [records, setRecords] = useState<RecordRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +217,13 @@ export default function DashboardPage() {
     }));
   }, [kpiRecords, records, kpiLatestMonth]);
 
+  // The single most actionable thing a dashboard viewer wants surfaced
+  // immediately: which quality indicators missed this month's target.
+  const failedKpis = useMemo(
+    () => kpiResults.filter((r) => r.result.status === "fail"),
+    [kpiResults]
+  );
+
   const kpiTrendByIndicator = useMemo(() => {
     if (!fiscalYear) return [];
     return KPI_INDICATORS.map((indicator) => ({
@@ -220,22 +243,40 @@ export default function DashboardPage() {
     );
   } else if (error) {
     content = (
-      <div className="glass-panel rounded-box p-6 text-sm">
-        <div className="font-semibold text-error">โหลดข้อมูลไม่สำเร็จ</div>
-        <div className="mt-1 text-base-content/60">{error}</div>
-        <div className="mt-3 text-xs text-base-content/40">
-          ตรวจสอบว่าได้ตั้งค่า GOOGLE_SHEET_ID และ service account env vars แล้ว
-        </div>
-      </div>
+      <StatusBanner
+        type="error"
+        title="โหลดข้อมูลไม่สำเร็จ"
+        message={
+          <>
+            {error}
+            <div className="mt-2 text-xs opacity-75">
+              ตรวจสอบว่าได้ตั้งค่า GOOGLE_SHEET_ID และ service account env vars แล้ว
+            </div>
+          </>
+        }
+      />
     );
   } else {
     content = (
     <div className="space-y-6 pb-16">
+      {failedKpis.length > 0 && (
+        <StatusBanner
+          type="warning"
+          title={`ตัวชี้วัดคุณภาพไม่ผ่านเกณฑ์ ${failedKpis.length} รายการ · ${MONTH_NAMES_TH[(kpiLatestMonth?.month ?? 1) - 1]} ${kpiLatestMonth?.year}`}
+          message={failedKpis.map((k) => k.indicator.name).join(" · ")}
+        />
+      )}
+
       {years.length === 0 && (
-        <div className="glass-panel rounded-box p-6 text-sm text-base-content/70">
-          ยังไม่มีข้อมูลในชีต &quot;ข้อมูลดิบ&quot; — เริ่มกรอกได้ที่หน้า{" "}
-          <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
-        </div>
+        <StatusBanner
+          type="info"
+          message={
+            <>
+              ยังไม่มีข้อมูลในชีต &quot;ข้อมูลดิบ&quot; — เริ่มกรอกได้ที่หน้า{" "}
+              <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
+            </>
+          }
+        />
       )}
 
       {years.length > 0 && (
@@ -311,7 +352,7 @@ export default function DashboardPage() {
                           <stop offset="100%" stopColor="var(--color-opd)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#E7EAF3" }} />
+                      <Tooltip contentStyle={chartColors.tooltip} labelStyle={{ color: chartColors.tooltip.color }} />
                       <Area
                         type="monotone"
                         dataKey="total"
@@ -366,11 +407,11 @@ export default function DashboardPage() {
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={monthlyChartData} barCategoryGap={18} barSize={24}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                <Legend wrapperStyle={{ fontSize: 12, color: "#8C98B8" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={chartColors.tooltip} cursor={{ fill: chartColors.cursor }} />
+                <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axisTick }} />
                 {SERVICE_POINTS.map((p, pIdx) => (
                   <Bar
                     key={p}
@@ -421,10 +462,10 @@ export default function DashboardPage() {
         </div>
         <ResponsiveContainer width="100%" height={260}>
           <LineChart data={trendChartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-            <XAxis dataKey="year" tick={{ fontSize: 12, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 12, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+            <XAxis dataKey="year" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={chartColors.tooltip} />
             <Line
               type="monotone"
               dataKey="total"
@@ -438,7 +479,7 @@ export default function DashboardPage() {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-white/8 text-base-content/40">
+              <tr className="border-b border-base-content/8 text-base-content/40">
                 <th className="py-1.5 text-left font-medium">ปี</th>
                 <th className="py-1.5 text-right font-medium">รวม</th>
                 <th className="py-1.5 text-right font-medium">% เปลี่ยนแปลง</th>
@@ -446,7 +487,7 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {trend.map((t) => (
-                <tr key={t.year} className="border-b border-white/5">
+                <tr key={t.year} className="border-b border-base-content/5">
                   <td className="py-1.5 text-base-content/70">{t.year}</td>
                   <td className="stat-figure-num py-1.5 text-right text-base-content/90">
                     {t.total.toLocaleString()}
@@ -470,13 +511,7 @@ export default function DashboardPage() {
 
       {/* TAT section */}
       {tatError ? (
-        <BentoCard i={10} className="!p-5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-error">
-            <Timer size={15} />
-            โหลดข้อมูล TAT ไม่สำเร็จ
-          </div>
-          <div className="mt-1 text-xs text-base-content/50">{tatError}</div>
-        </BentoCard>
+        <StatusBanner type="error" title="โหลดข้อมูล TAT ไม่สำเร็จ" message={tatError} className="mt-8" />
       ) : tatYears.length > 0 && tatYear ? (
         <>
           <div className="mb-4 mt-8 flex flex-wrap items-center justify-between gap-3">
@@ -508,11 +543,11 @@ export default function DashboardPage() {
                   </h3>
                   <ResponsiveContainer width="100%" height={240}>
                     <LineChart data={data}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} unit="น." />
-                      <Tooltip contentStyle={TOOLTIP_STYLE} />
-                      <Legend wrapperStyle={{ fontSize: 10, color: "#8C98B8" }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} unit="น." />
+                      <Tooltip contentStyle={chartColors.tooltip} />
+                      <Legend wrapperStyle={{ fontSize: 10, color: chartColors.axisTick }} />
                       {Object.entries(TAT_STAGE_META).map(([stage, sMeta]) => (
                         <Line
                           key={stage}
@@ -533,21 +568,21 @@ export default function DashboardPage() {
           </div>
         </>
       ) : (
-        <BentoCard i={10} className="!p-5 mt-8 text-sm text-base-content/60">
-          ยังไม่มีข้อมูล TAT — เริ่มกรอกได้ที่หน้า{" "}
-          <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
-        </BentoCard>
+        <StatusBanner
+          type="info"
+          className="mt-8"
+          message={
+            <>
+              ยังไม่มีข้อมูล TAT — เริ่มกรอกได้ที่หน้า{" "}
+              <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
+            </>
+          }
+        />
       )}
 
       {/* KPI / quality-indicators section */}
       {kpiError ? (
-        <BentoCard i={16} className="!p-5 mt-8">
-          <div className="flex items-center gap-2 text-sm font-semibold text-error">
-            <ShieldCheck size={15} />
-            โหลดข้อมูลตัวชี้วัดคุณภาพไม่สำเร็จ
-          </div>
-          <div className="mt-1 text-xs text-base-content/50">{kpiError}</div>
-        </BentoCard>
+        <StatusBanner type="error" title="โหลดข้อมูลตัวชี้วัดคุณภาพไม่สำเร็จ" message={kpiError} className="mt-8" />
       ) : kpiLatestMonth ? (
         <>
           <div className="mb-4 mt-8 flex items-center gap-2">
@@ -581,7 +616,7 @@ export default function DashboardPage() {
                   {result.pct == null ? "-" : `${result.pct.toFixed(1)}%`}
                 </div>
                 {result.detail.length > 0 && (
-                  <div className="mt-3 space-y-1 border-t border-white/8 pt-2">
+                  <div className="mt-3 space-y-1 border-t border-base-content/8 pt-2">
                     {result.detail.map((d) => (
                       <div key={d.label} className="flex items-center justify-between text-xs">
                         <span className="text-base-content/50">{d.label}</span>
@@ -611,10 +646,10 @@ export default function DashboardPage() {
                 <h3 className="mb-1 text-xs font-semibold text-base-content/70">{indicator.name}</h3>
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#8C98B8" }} axisLine={false} tickLine={false} unit="%" />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} unit="%" />
+                    <Tooltip contentStyle={chartColors.tooltip} />
                     <Line
                       type="monotone"
                       dataKey="pct"
@@ -633,10 +668,16 @@ export default function DashboardPage() {
           </p>
         </>
       ) : (
-        <BentoCard i={16} className="!p-5 mt-8 text-sm text-base-content/60">
-          ยังไม่มีข้อมูลตัวชี้วัดคุณภาพ — เริ่มกรอกได้ที่หน้า{" "}
-          <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
-        </BentoCard>
+        <StatusBanner
+          type="info"
+          className="mt-8"
+          message={
+            <>
+              ยังไม่มีข้อมูลตัวชี้วัดคุณภาพ — เริ่มกรอกได้ที่หน้า{" "}
+              <Link href="/entry" className="link link-primary">กรอกข้อมูล</Link>
+            </>
+          }
+        />
       )}
     </div>
     );
@@ -647,7 +688,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-field bg-error/15 text-error">
+          <span className="icon-badge flex h-10 w-10 shrink-0 items-center justify-center rounded-field bg-error/15 text-error">
             <Droplet size={19} strokeWidth={2.4} fill="currentColor" fillOpacity={0.25} />
           </span>
           <div>
@@ -655,16 +696,20 @@ export default function DashboardPage() {
               สถิติงานบริการหน่วยเจาะเลือด เก็บสิ่งส่งตรวจ และ POCT
             </h1>
             <p className="mt-1 text-sm text-base-content/50">โรงพยาบาลศรีนครินทร์</p>
+            <LiveClock className="mt-1.5" />
           </div>
         </div>
-        <Link
-          href="/entry"
-          title="เข้าสู่ระบบกรอกข้อมูล"
-          aria-label="เข้าสู่ระบบกรอกข้อมูล"
-          className="btn btn-circle btn-ghost glass-panel border-0 text-base-content/60 hover:text-primary"
-        >
-          <KeyRound size={18} strokeWidth={2.2} />
-        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeSwitcher />
+          <Link
+            href="/entry"
+            title="เข้าสู่ระบบกรอกข้อมูล"
+            aria-label="เข้าสู่ระบบกรอกข้อมูล"
+            className="btn btn-circle btn-ghost glass-panel border-0 text-base-content/60 hover:text-primary"
+          >
+            <KeyRound size={18} strokeWidth={2.2} />
+          </Link>
+        </div>
       </div>
 
       {content}

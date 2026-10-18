@@ -56,7 +56,7 @@ export function AttendanceYearTable({ records }: { records: RecordRow[] }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] text-xs">
           <thead>
-            <tr className="border-b border-white/10 text-base-content/50">
+            <tr className="border-b border-base-content/10 text-base-content/50">
               <th className="sticky left-0 z-10 bg-base-100/90 py-2 pr-3 text-left font-medium backdrop-blur-sm">
                 จุดบริการ / ประเภท
               </th>
@@ -77,7 +77,7 @@ export function AttendanceYearTable({ records }: { records: RecordRow[] }) {
                   {pointRows.map((row) => (
                     <tr
                       key={`${row.point}|${row.type}`}
-                      className="border-b border-white/5 text-base-content/70 hover:bg-white/3"
+                      className="border-b border-base-content/5 text-base-content/70 hover:bg-base-content/3"
                     >
                       <td className="sticky left-0 z-10 bg-base-100/90 py-1.5 pr-3 backdrop-blur-sm">
                         <span className="text-base-content/35">{meta.short} · </span>
@@ -93,7 +93,7 @@ export function AttendanceYearTable({ records }: { records: RecordRow[] }) {
                       </td>
                     </tr>
                   ))}
-                  <tr className="border-b border-white/10 bg-white/4 font-semibold">
+                  <tr className="border-b border-base-content/10 bg-base-content/4 font-semibold">
                     <td className="sticky left-0 z-10 bg-base-200/80 py-1.5 pr-3" style={{ color: meta.color }}>
                       รวม - {point}
                     </td>

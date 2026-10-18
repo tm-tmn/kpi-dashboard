@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearOf } from "@/lib/constants";
 import { monthTotal, RecordRow } from "@/lib/aggregate";
 import { kpiMonthResult, KpiRecordRow } from "@/lib/aggregate-kpi";
-import { CheckCircle2, AlertCircle, Loader2, Save, ShieldCheck, Info } from "lucide-react";
+import { Loader2, Save, ShieldCheck, Info } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
+import { StatusBanner } from "@/components/StatusBanner";
 import { KpiYearTable } from "@/components/entry/KpiYearTable";
 
 const now = new Date();
@@ -134,7 +135,7 @@ export function KpiEntryForm() {
                 ))}
               </select>
             </div>
-            <div className="badge badge-ghost border-white/10 text-xs text-base-content/50">
+            <div className="badge badge-ghost border-base-content/10 text-xs text-base-content/50">
               ปีงบประมาณ {fiscalYearOf(year, month)}
             </div>
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
@@ -142,15 +143,7 @@ export function KpiEntryForm() {
         </BentoCard>
 
         {status && (
-          <div
-            role="alert"
-            className={`alert border-0 text-sm ${
-              status.type === "ok" ? "bg-success/15 text-success" : "bg-error/15 text-error"
-            }`}
-          >
-            {status.type === "ok" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-            <span>{status.text}</span>
-          </div>
+          <StatusBanner type={status.type === "ok" ? "success" : "error"} message={status.text} />
         )}
 
         <div className="space-y-4">
@@ -158,7 +151,7 @@ export function KpiEntryForm() {
             const result = kpiMonthResult(indicator, draftRecords, attendance, year, month);
             return (
               <BentoCard key={indicator.id} i={idx + 1} className="!p-0 overflow-hidden">
-                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-white/8 px-5 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-base-content/8 px-5 py-3">
                   <div>
                     <div className="text-sm font-semibold text-base-content">{indicator.name}</div>
                     <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-base-content/40">
@@ -244,7 +237,7 @@ export function KpiEntryForm() {
                         const pending = boolValue(indicator.id, `${g.key}_pending`);
                         const groupResult = result.detail.find((d) => d.label === g.label);
                         return (
-                          <div key={g.key} className="rounded-field border border-white/8 p-3">
+                          <div key={g.key} className="rounded-field border border-base-content/8 p-3">
                             <div className="mb-2 flex items-center justify-between">
                               <span className="text-xs font-semibold text-base-content/80">{g.label}</span>
                               {groupResult?.pct != null && (

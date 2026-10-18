@@ -52,7 +52,7 @@ export function TatYearTable({ records }: { records: TatRecordRow[] }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] text-xs">
           <thead>
-            <tr className="border-b border-white/10 text-base-content/50">
+            <tr className="border-b border-base-content/10 text-base-content/50">
               <th className="sticky left-0 z-10 bg-base-100/90 py-2 pr-3 text-left font-medium backdrop-blur-sm">
                 จุดบริการ / ขั้นตอน
               </th>
@@ -73,7 +73,7 @@ export function TatYearTable({ records }: { records: TatRecordRow[] }) {
                     return (
                       <tr
                         key={`${row.point}|${row.stage}`}
-                        className={`border-b border-white/5 hover:bg-white/3 ${
+                        className={`border-b border-base-content/5 hover:bg-base-content/3 ${
                           stageMeta.total ? "font-semibold text-base-content" : "text-base-content/70"
                         }`}
                       >

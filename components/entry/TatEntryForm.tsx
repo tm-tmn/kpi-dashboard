@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { SERVICE_POINTS, TAT_STAGES, MONTH_NAMES_TH } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import { TAT_STAGE_META } from "@/lib/constants";
-import { CheckCircle2, AlertCircle, Loader2, Save, Timer } from "lucide-react";
+import { Loader2, Save, Timer } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
+import { StatusBanner } from "@/components/StatusBanner";
 import { TatYearTable } from "@/components/entry/TatYearTable";
 
 type TatRecordRow = {
@@ -130,7 +131,7 @@ export function TatEntryForm() {
                 ))}
               </select>
             </div>
-            <div className="badge badge-ghost border-white/10 text-xs text-base-content/50">
+            <div className="badge badge-ghost border-base-content/10 text-xs text-base-content/50">
               ช่วงเวลา 6.00-9.00 น.
             </div>
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
@@ -138,15 +139,7 @@ export function TatEntryForm() {
         </BentoCard>
 
         {status && (
-          <div
-            role="alert"
-            className={`alert border-0 text-sm ${
-              status.type === "ok" ? "bg-success/15 text-success" : "bg-error/15 text-error"
-            }`}
-          >
-            {status.type === "ok" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-            <span>{status.text}</span>
-          </div>
+          <StatusBanner type={status.type === "ok" ? "success" : "error"} message={status.text} />
         )}
 
         <div className="space-y-4">
@@ -155,7 +148,7 @@ export function TatEntryForm() {
             const Icon = meta.icon;
             return (
               <BentoCard key={point} i={idx + 1} className="!p-0 overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3">
+                <div className="flex items-center gap-2.5 border-b border-base-content/8 px-5 py-3">
                   <span
                     className="flex h-7 w-7 items-center justify-center rounded-field"
                     style={{ background: `color-mix(in oklab, ${meta.color} 18%, transparent)`, color: meta.color }}

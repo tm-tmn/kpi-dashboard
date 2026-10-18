@@ -8,8 +8,9 @@ import {
   fiscalYearOf,
 } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
-import { CheckCircle2, AlertCircle, Loader2, Save, Users } from "lucide-react";
+import { Loader2, Save, Users } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
+import { StatusBanner } from "@/components/StatusBanner";
 import { AttendanceYearTable } from "@/components/entry/AttendanceYearTable";
 
 type RecordRow = {
@@ -147,7 +148,7 @@ export function AttendanceEntryForm() {
                 ))}
               </select>
             </div>
-            <div className="badge badge-ghost border-white/10 text-xs text-base-content/50">
+            <div className="badge badge-ghost border-base-content/10 text-xs text-base-content/50">
               ปีงบประมาณ {fiscalYearOf(year, month)}
             </div>
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
@@ -155,15 +156,7 @@ export function AttendanceEntryForm() {
         </BentoCard>
 
         {status && (
-          <div
-            role="alert"
-            className={`alert border-0 text-sm ${
-              status.type === "ok" ? "bg-success/15 text-success" : "bg-error/15 text-error"
-            }`}
-          >
-            {status.type === "ok" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-            <span>{status.text}</span>
-          </div>
+          <StatusBanner type={status.type === "ok" ? "success" : "error"} message={status.text} />
         )}
 
         <div className="space-y-4">
@@ -172,7 +165,7 @@ export function AttendanceEntryForm() {
             const Icon = meta.icon;
             return (
               <BentoCard key={point} i={idx + 1} className="!p-0 overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3">
+                <div className="flex items-center gap-2.5 border-b border-base-content/8 px-5 py-3">
                   <span
                     className="flex h-7 w-7 items-center justify-center rounded-field"
                     style={{ background: `color-mix(in oklab, ${meta.color} 18%, transparent)`, color: meta.color }}

@@ -41,7 +41,7 @@ export function KpiYearTable({ records, attendance }: { records: KpiRecordRow[];
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] text-xs">
           <thead>
-            <tr className="border-b border-white/10 text-base-content/50">
+            <tr className="border-b border-base-content/10 text-base-content/50">
               <th className="sticky left-0 z-10 bg-base-100/90 py-2 pr-3 text-left font-medium backdrop-blur-sm">
                 ตัวชี้วัด
               </th>
@@ -52,7 +52,7 @@ export function KpiYearTable({ records, attendance }: { records: KpiRecordRow[];
           </thead>
           <tbody>
             {KPI_INDICATORS.map((indicator) => (
-              <tr key={indicator.id} className="border-b border-white/5 text-base-content/70 hover:bg-white/3">
+              <tr key={indicator.id} className="border-b border-base-content/5 text-base-content/70 hover:bg-base-content/3">
                 <td className="sticky left-0 z-10 max-w-[220px] truncate bg-base-100/90 py-1.5 pr-3 backdrop-blur-sm">
                   {indicator.name}
                 </td>
