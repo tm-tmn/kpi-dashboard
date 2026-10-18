@@ -7,11 +7,11 @@ import {
   PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
 } from "recharts";
 import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
-import { SERVICE_POINTS, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH } from "@/lib/constants";
+import { SERVICE_POINTS, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
-  fiscalMonthLabels, yearlyTrend,
+  fiscalMonthLabels, yearlyTrend, monthByPoint, monthByType,
 } from "@/lib/aggregate";
 import {
   TatRecordRow, availableTatYears, tatSeriesByPoint, tatMonthLabels,
@@ -45,6 +45,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fiscalYear, setFiscalYear] = useState<number | null>(null);
+  // "all" = whole fiscal year (default); a number 0..11 = one fiscal-order
+  // month index (0 = ต.ค., 11 = ก.ย.) to drill the dashboard into.
+  const [monthIndex, setMonthIndex] = useState<number | "all">("all");
 
   const [tatRecords, setTatRecords] = useState<TatRecordRow[]>([]);
   const [tatYear, setTatYear] = useState<number | null>(null);
@@ -93,7 +96,25 @@ export default function DashboardPage() {
   const trend = useMemo(() => yearlyTrend(records), [records]);
   const latestTrend = trend[trend.length - 1];
 
-  const grandTotal = byPoint.reduce((s, p) => s + p.total, 0);
+  // The actual (ปี, เดือน) the month selector points at, in fiscal order —
+  // null when the selector is on "ทั้งปี" (whole fiscal year).
+  const selectedMonthPair = useMemo(() => {
+    if (!fiscalYear || monthIndex === "all") return null;
+    return fiscalYearMonths(fiscalYear)[monthIndex] ?? null;
+  }, [fiscalYear, monthIndex]);
+
+  // Per-จุดบริการ totals scoped to the selector: whole fiscal year by
+  // default, or a single month when one is picked.
+  const displayByPoint = useMemo(() => {
+    if (selectedMonthPair) return monthByPoint(records, selectedMonthPair.year, selectedMonthPair.month, SERVICE_POINTS);
+    return byPoint;
+  }, [records, selectedMonthPair, byPoint]);
+
+  const grandTotal = displayByPoint.reduce((s, p) => s + p.total, 0);
+
+  const scopeLabel = selectedMonthPair
+    ? `เดือน ${MONTH_NAMES_TH[selectedMonthPair.month - 1]} ${selectedMonthPair.year}`
+    : `ปีงบ ${fiscalYear}`;
 
   const monthlyChartData = monthLabels.map((label, i) => {
     const row: Record<string, string | number> = { month: label };
@@ -179,7 +200,7 @@ export default function DashboardPage() {
 
       {years.length > 0 && (
         <>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-medium uppercase tracking-wide text-base-content/40">
               ปีงบประมาณ
             </span>
@@ -190,6 +211,19 @@ export default function DashboardPage() {
             >
               {years.map((y) => (
                 <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <span className="text-xs font-medium uppercase tracking-wide text-base-content/40">
+              เดือน
+            </span>
+            <select
+              className="select select-sm select-bordered w-32 bg-base-200/60"
+              value={monthIndex}
+              onChange={(e) => setMonthIndex(e.target.value === "all" ? "all" : Number(e.target.value))}
+            >
+              <option value="all">ทั้งปี</option>
+              {monthLabels.map((label, i) => (
+                <option key={label} value={i}>{label}</option>
               ))}
             </select>
           </div>
@@ -203,14 +237,14 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2 text-xs font-medium text-base-content/50">
                       <Users size={14} />
-                      จำนวนผู้รับบริการทั้งหมด · ปีงบ {fiscalYear}
+                      จำนวนผู้รับบริการทั้งหมด · {scopeLabel}
                     </div>
                     <div className="mt-3 text-4xl font-bold text-base-content sm:text-5xl">
                       <CountUp value={grandTotal} />
                       <span className="ml-2 text-base font-medium text-base-content/40">คน</span>
                     </div>
                   </div>
-                  {latestTrend?.pctChange != null && (
+                  {!selectedMonthPair && latestTrend?.pctChange != null && (
                     <div
                       className={`badge gap-1 border-0 ${
                         latestTrend.pctChange >= 0
@@ -253,9 +287,10 @@ export default function DashboardPage() {
             </BentoCard>
 
             {/* Per-point mini stats */}
-            {byPoint.map((p, idx) => {
+            {displayByPoint.map((p, idx) => {
               const meta = pointMeta(p.point);
               const Icon = meta.icon;
+              const pct = grandTotal > 0 ? (p.total / grandTotal) * 100 : 0;
               return (
                 <BentoCard key={p.point} i={idx + 1}>
                   <div className="flex items-center justify-between">
@@ -267,8 +302,13 @@ export default function DashboardPage() {
                     </span>
                     <span className="text-[11px] font-medium text-base-content/40">{meta.short}</span>
                   </div>
-                  <div className="mt-4 text-2xl font-bold text-base-content">
-                    <CountUp value={p.total} />
+                  <div className="mt-4 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-base-content">
+                      <CountUp value={p.total} />
+                    </span>
+                    <span className="stat-figure-num text-xs font-semibold" style={{ color: meta.color }}>
+                      {pct.toFixed(1)}%
+                    </span>
                   </div>
                   <div className="mt-0.5 truncate text-xs text-base-content/45">{p.point}</div>
                 </BentoCard>
@@ -292,7 +332,11 @@ export default function DashboardPage() {
                 <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
                 <Legend wrapperStyle={{ fontSize: 12, color: "#8C98B8" }} />
                 {SERVICE_POINTS.map((p) => (
-                  <Bar key={p} dataKey={p} stackId="a" fill={pointMeta(p).color} radius={[0, 0, 0, 0]} />
+                  <Bar key={p} dataKey={p} stackId="a" fill={pointMeta(p).color} radius={[0, 0, 0, 0]}>
+                    {monthlyChartData.map((_, i) => (
+                      <Cell key={i} fillOpacity={monthIndex === "all" || monthIndex === i ? 1 : 0.25} />
+                    ))}
+                  </Bar>
                 ))}
               </BarChart>
             </ResponsiveContainer>
@@ -301,13 +345,19 @@ export default function DashboardPage() {
           {/* Donuts */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {SERVICE_POINTS.map((point, idx) => {
-              const data = fiscalYearByType(records, fiscalYear!, point);
+              const data = selectedMonthPair
+                ? monthByType(records, selectedMonthPair.year, selectedMonthPair.month, point)
+                : fiscalYearByType(records, fiscalYear!, point);
               if (!data.length) return null;
               const meta = pointMeta(point);
+              const pointTotal = data.reduce((s, d) => s + d.total, 0);
               return (
                 <BentoCard key={point} i={6 + idx}>
-                  <h3 className="mb-1 text-xs font-semibold text-base-content/70">{point}</h3>
-                  <ResponsiveContainer width="100%" height={220}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-base-content/70">{point}</h3>
+                    <span className="text-[11px] text-base-content/35">{scopeLabel}</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={240}>
                     <PieChart>
                       <Pie
                         data={data}
@@ -317,13 +367,32 @@ export default function DashboardPage() {
                         outerRadius={78}
                         paddingAngle={3}
                         stroke="none"
+                        label={({ value }) =>
+                          pointTotal > 0 ? `${((Number(value) / pointTotal) * 100).toFixed(0)}%` : ""
+                        }
+                        labelLine={false}
+                        fontSize={11}
                       >
                         {data.map((_, i) => (
                           <Cell key={i} fill={meta.palette[i % meta.palette.length]} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={TOOLTIP_STYLE} />
-                      <Legend wrapperStyle={{ fontSize: 11, color: "#8C98B8" }} />
+                      <Tooltip
+                        contentStyle={TOOLTIP_STYLE}
+                        formatter={(value, name) => {
+                          const v = Number(value) || 0;
+                          const pct = pointTotal > 0 ? ((v / pointTotal) * 100).toFixed(1) : "0";
+                          return [`${v.toLocaleString()} (${pct}%)`, name];
+                        }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, color: "#8C98B8" }}
+                        formatter={(value, entry) => {
+                          const v = (entry as unknown as { payload?: { total?: number } }).payload?.total ?? 0;
+                          const pct = pointTotal > 0 ? (v / pointTotal) * 100 : 0;
+                          return `${value} (${pct.toFixed(0)}%)`;
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </BentoCard>

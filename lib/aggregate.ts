@@ -47,6 +47,34 @@ export function fiscalYearByPoint(records: RecordRow[], fiscalYear: number, poin
   });
 }
 
+/** Per-จุดบริการ totals for a single (year, month) — powers the dashboard's
+ * month drill-down (vs. the whole-fiscal-year fiscalYearByPoint). */
+export function monthByPoint(records: RecordRow[], year: number, month: number, points: readonly string[]) {
+  return points.map((point) => ({
+    point,
+    total: records
+      .filter((r) => r.year === year && r.month === month && r.point === point)
+      .reduce((s, r) => s + r.count, 0),
+  }));
+}
+
+/** Breakdown by ประเภทผู้รับบริการ within one จุดบริการ, for a single
+ * (year, month) — the month-scoped counterpart to fiscalYearByType. */
+export function monthByType(records: RecordRow[], year: number, month: number, point: string) {
+  const types = Array.from(
+    new Set(records.filter((r) => r.point === point).map((r) => r.type))
+  );
+  return types
+    .map((type) => {
+      const total = records
+        .filter((r) => r.year === year && r.month === month && r.point === point && r.type === type)
+        .reduce((s, r) => s + r.count, 0);
+      return { type, total };
+    })
+    .filter((t) => t.total > 0)
+    .sort((a, b) => b.total - a.total);
+}
+
 /** Breakdown by ประเภทผู้รับบริการ within one จุดบริการ, for a fiscal year. */
 export function fiscalYearByType(records: RecordRow[], fiscalYear: number, point: string) {
   const months = fiscalYearMonths(fiscalYear);
