@@ -81,6 +81,11 @@ export type KpiField = { key: string; label: string };
 // default to 1 (matches the Excel for most indicators); rejection + PM
 // override to 2 since those are tracked to a finer tolerance (e.g. 0.13%,
 // 96.15%).
+// The pass/fail threshold from "criteria", as a number the trend chart can
+// draw a reference line at and zoom its y-axis around. "direction" says which
+// side is the passing side (max = at-least, min = at-most).
+export type KpiTarget = { value: number; direction: "max" | "min" };
+
 export type KpiIndicator =
   | {
       id: string;
@@ -88,6 +93,7 @@ export type KpiIndicator =
       shortName?: string;
       criteria: string;
       decimals?: number;
+      target?: KpiTarget;
       kind: "ratio_auto"; // denominator auto-pulled from attendance total, read-only
       numerator: KpiField;
     }
@@ -97,6 +103,7 @@ export type KpiIndicator =
       shortName?: string;
       criteria: string;
       decimals?: number;
+      target?: KpiTarget;
       kind: "ratio_editable"; // denominator pre-filled from attendance total but editable
       numerator: KpiField;
       denominator: KpiField;
@@ -112,6 +119,7 @@ export type KpiIndicator =
       shortName?: string;
       criteria: string;
       decimals?: number;
+      target?: KpiTarget;
       kind: "ratio_pair"; // both numerator and denominator entered manually
       numerator: KpiField;
       denominator: KpiField;
@@ -122,6 +130,7 @@ export type KpiIndicator =
       shortName?: string;
       criteria: string;
       decimals?: number;
+      target?: KpiTarget;
       kind: "direct_percent"; // a single % value entered directly
       field: KpiField;
     }
@@ -131,6 +140,7 @@ export type KpiIndicator =
       shortName?: string;
       criteria: string;
       decimals?: number;
+      target?: KpiTarget;
       kind: "pm"; // PM device groups: success count, total count, "pending contract" flag
       groups: { key: string; label: string }[];
     }
@@ -140,6 +150,7 @@ export type KpiIndicator =
       shortName?: string;
       criteria: string;
       decimals?: number;
+      target?: KpiTarget;
       kind: "incident"; // incident count (PASS if 0) + a yes/no checkbox
       countField: KpiField;
       checkboxField: KpiField;
@@ -152,6 +163,7 @@ export const KPI_INDICATORS: KpiIndicator[] = [
     shortName: "อัตราการปฏิเสธสิ่งส่งตรวจ",
     criteria: "อัตราการปฏิเสธสิ่งส่งตรวจ %Rejected specimen (Patient) ต้องไม่เกินร้อยละ 0.5 ในแต่ละเดือน",
     decimals: 2,
+    target: { value: 0.5, direction: "min" },
     kind: "ratio_auto",
     numerator: { key: "rejection_count", label: "จำนวนอุบัติการณ์การปฏิเสธสิ่งส่งตรวจทั้งหมด" },
   },
@@ -161,6 +173,7 @@ export const KPI_INDICATORS: KpiIndicator[] = [
     shortName: "PM เครื่องจัดเตรียมหลอดเลือดอัตโนมัติ",
     criteria: "Preventive maintenance (PM) และ Corrective action ต้องดำเนินการสำเร็จร้อยละ 100.0 ในแต่ละเดือน/ปี",
     decimals: 2,
+    target: { value: 100, direction: "max" },
     kind: "pm",
     groups: [
       { key: "select", label: "SELECT" },
@@ -173,6 +186,7 @@ export const KPI_INDICATORS: KpiIndicator[] = [
     shortName: "อัตราผู้รับบริการที่รอคอยไม่เกิน 30 นาที",
     criteria: "อัตราระยะเวลาการให้บริการโดยภาพรวม (Turn Around Time) %TAT ได้ตามกำหนด (ไม่เกิน 30 นาทีต่อราย) ต้องผ่านมากกว่าร้อยละ 90.0 ในแต่ละเดือน",
     decimals: 2,
+    target: { value: 90, direction: "max" },
     kind: "ratio_editable",
     numerator: { key: "tat30_count", label: "จำนวนผู้รับบริการที่มีระยะเวลารอคอยไม่เกิน 30 นาที" },
     denominator: { key: "tat30_denominator", label: "จำนวนผู้รับบริการทั้งหมด" },
@@ -185,6 +199,7 @@ export const KPI_INDICATORS: KpiIndicator[] = [
     id: "satisfaction",
     name: "ความพึงพอใจของผู้รับบริการ",
     criteria: "เกณฑ์การประเมินต้องมีผลการประเมินความพึงพอใจมากที่สุด (ระดับ 5) มากกว่าร้อยละ 30 ในแต่ละเดือน",
+    target: { value: 30, direction: "max" },
     kind: "direct_percent",
     field: { key: "satisfaction_pct", label: "ร้อยละความพึงพอใจ" },
   },
@@ -192,6 +207,7 @@ export const KPI_INDICATORS: KpiIndicator[] = [
     id: "complaint",
     name: "เรื่องร้องเรียนได้รับการแก้ไข",
     criteria: "เรื่องร้องเรียนต้องได้รับการแก้ไขร้อยละ 100",
+    target: { value: 100, direction: "max" },
     kind: "ratio_pair",
     numerator: { key: "complaint_resolved", label: "จำนวนข้อร้องเรียนที่แก้ไขสำเร็จ" },
     denominator: { key: "complaint_total", label: "จำนวนข้อร้องเรียนทั้งหมด" },

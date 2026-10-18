@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
+  Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area, ReferenceLine,
 } from "recharts";
 import {
   KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck,
@@ -89,6 +89,57 @@ const KPI_ACCENTS = [
   "var(--color-primary)",
   "var(--color-secondary)",
 ];
+
+// A shared 0–100 y-axis reads consistently across cards, but it also
+// flattens any indicator whose real values and target both sit near one end
+// of that range (e.g. rejection rate ≤0.5%, or PM/complaint/TAT30/satisfaction
+// clustered near their 90–100% target) into what looks like a flat line —
+// the variance that actually matters is too small a fraction of 100 to see.
+// Zooming the axis to the data + target (with a dashed target reference line
+// so the threshold stays visible) keeps the chart honest while making real
+// month-to-month movement legible.
+function niceStep(roughStep: number): number {
+  if (roughStep <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const norm = roughStep / mag;
+  const step = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+  return step * mag;
+}
+
+function zoomedPercentAxis(values: (number | null | undefined)[], target?: number) {
+  const nums = values.filter((v): v is number => v != null);
+  if (nums.length === 0) return { domain: [0, 100] as [number, number], ticks: undefined, targetInRange: false };
+  const dataMin = Math.min(...nums);
+  const dataMax = Math.max(...nums);
+  const dataSpan = Math.max(dataMax - dataMin, dataMax * 0.1, 1);
+
+  // Fold the target into the zoomed range only if it's reasonably close to
+  // the real data (within ~2x the data's own spread). A target far outside
+  // the actual variance — satisfaction's 30% floor when real scores run
+  // 75-85%, say — would otherwise blow the zoom back out to the same wide,
+  // flat-looking range this is meant to fix. When that happens the target
+  // is shown as a badge next to the chart title instead of a line on it.
+  let lo = dataMin;
+  let hi = dataMax;
+  let targetInRange = target == null;
+  if (target != null) {
+    const distOutside = target < dataMin ? dataMin - target : target > dataMax ? target - dataMax : 0;
+    if (distOutside <= dataSpan * 2) {
+      lo = Math.min(lo, target);
+      hi = Math.max(hi, target);
+      targetInRange = true;
+    }
+  }
+
+  const span = Math.max(hi - lo, hi * 0.1, 1);
+  const step = niceStep(span / 4);
+  const loF = Math.max(0, Math.floor((lo - span * 0.25) / step) * step);
+  let hiF = Math.min(100, Math.ceil((hi + span * 0.25) / step) * step);
+  if (hiF <= loF) hiF = Math.min(100, loF + step);
+  const ticks: number[] = [];
+  for (let v = loF; v <= hiF + step / 2; v += step) ticks.push(Number(v.toFixed(6)));
+  return { domain: [loF, hiF] as [number, number], ticks, targetInRange };
+}
 
 function Skeleton() {
   return (
@@ -414,7 +465,7 @@ export default function DashboardPage() {
                       {pct.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-base-content/45">{p.point}</div>
+                  <div className="mt-0.5 truncate text-sm font-medium text-base-content/70">{p.point}</div>
                 </BentoCard>
               );
             })}
@@ -686,13 +737,28 @@ export default function DashboardPage() {
           {/* Trend lines — a PASS/FAIL indicator (safety) is a status, not a
               continuous quantity, so charting it as a 0–100 line that dips on
               every incident reads as noise; it gets a month-by-month status
-              strip instead. The rest stay % line charts, with a shared 0–100
-              y-axis (extended only if real data genuinely exceeds 100%) so
-              scales read consistently across cards. */}
+              strip instead. The rest stay % line charts, each zoomed to its
+              own data + target (not a shared 0–100 axis) — several of these
+              indicators naturally sit within a few points of their target
+              (rejection ≤0.5%, PM/complaint/TAT30 near 90–100%), and a full
+              0–100 scale buries that real movement. A dashed target line
+              keeps the zoomed axis honest about where "pass" actually is. */}
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {kpiTrendByIndicator.map(({ indicator, data }, idx) => (
+            {kpiTrendByIndicator.map(({ indicator, data }, idx) => {
+              const axis = zoomedPercentAxis(
+                data.map((d) => d.pct),
+                indicator.target?.value
+              );
+              return (
               <BentoCard key={indicator.id} i={23 + idx} className="!p-5">
-                <h3 className="mb-1 text-xs font-semibold text-base-content/70">{indicator.shortName ?? indicator.name}</h3>
+                <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <h3 className="text-xs font-semibold text-base-content/70">{indicator.shortName ?? indicator.name}</h3>
+                  {indicator.target && !axis.targetInRange && (
+                    <span className="shrink-0 text-[10px] text-base-content/35">
+                      เป้าหมาย {indicator.target.value}%
+                    </span>
+                  )}
+                </div>
                 {indicator.kind === "incident" ? (
                   <div className="flex h-[180px] flex-col justify-center gap-2">
                     <div className="grid grid-cols-12 gap-1.5">
@@ -730,7 +796,8 @@ export default function DashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
                       <YAxis
-                        domain={[0, (dataMax: number) => Math.max(100, Math.ceil(dataMax / 10) * 10)]}
+                        domain={axis.domain}
+                        ticks={axis.ticks}
                         tick={{ fontSize: 11, fill: chartColors.axisTick }}
                         axisLine={false}
                         tickLine={false}
@@ -740,6 +807,20 @@ export default function DashboardPage() {
                         contentStyle={chartColors.tooltip}
                         formatter={(value) => [`${Number(value).toFixed(indicator.decimals ?? 1)}%`, indicator.shortName ?? indicator.name]}
                       />
+                      {indicator.target && axis.targetInRange && (
+                        <ReferenceLine
+                          y={indicator.target.value}
+                          stroke={chartColors.axisTick}
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.6}
+                          label={{
+                            value: `เป้าหมาย ${indicator.target.value}%`,
+                            position: "insideTopRight",
+                            fontSize: 10,
+                            fill: chartColors.axisTick,
+                          }}
+                        />
+                      )}
                       <Line
                         type="monotone"
                         dataKey="pct"
@@ -753,7 +834,8 @@ export default function DashboardPage() {
                   </ResponsiveContainer>
                 )}
               </BentoCard>
-            ))}
+              );
+            })}
           </div>
           <p className="mt-3 text-[11px] text-base-content/35">
             เกณฑ์ประเมินของแต่ละตัวชี้วัดเป็นค่าเริ่มต้น — ปรับข้อความเกณฑ์จริงได้ที่หน้ากรอกข้อมูล (ตัวชี้วัดคุณภาพ)
