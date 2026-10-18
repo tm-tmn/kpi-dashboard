@@ -172,6 +172,7 @@ export const KPI_INDICATORS: KpiIndicator[] = [
     name: "ระยะเวลาการให้บริการโดยภาพรวม (Turn Around Time) %TAT ได้ตามกำหนด (ไม่เกิน 30 นาทีต่อราย) ในแต่ละเดือน",
     shortName: "อัตราผู้รับบริการที่รอคอยไม่เกิน 30 นาที",
     criteria: "อัตราระยะเวลาการให้บริการโดยภาพรวม (Turn Around Time) %TAT ได้ตามกำหนด (ไม่เกิน 30 นาทีต่อราย) ต้องผ่านมากกว่าร้อยละ 90.0 ในแต่ละเดือน",
+    decimals: 2,
     kind: "ratio_editable",
     numerator: { key: "tat30_count", label: "จำนวนผู้รับบริการที่มีระยะเวลารอคอยไม่เกิน 30 นาที" },
     denominator: { key: "tat30_denominator", label: "จำนวนผู้รับบริการทั้งหมด" },

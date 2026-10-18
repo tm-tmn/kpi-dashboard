@@ -89,28 +89,11 @@ export function KpiEntryForm() {
     setStatus(null);
   }, [year, month]);
 
-  // Build a "draft" records array (saved + in-progress edits) so the live
-  // computed %/status readouts update as the user types, before saving.
-  const draftRecords: KpiRecordRow[] = useMemo(() => {
-    const others = records.filter((r) => !(r.year === year && r.month === month));
-    const current = new Map<string, string>();
-    for (const r of records) {
-      if (r.year === year && r.month === month) current.set(keyOf(r.indicator, r.field), r.value);
-    }
-    for (const [k, v] of Object.entries(edits)) current.set(k, v);
-    const merged = Array.from(current.entries()).map(([k, value]) => {
-      const [indicator, field] = k.split("|||");
-      return { year, month, indicator, field, value };
-    });
-    return [...others, ...merged];
-  }, [records, edits, year, month]);
-
   // Every (indicator, field) the form can show, with the exact same default
   // fallback each NumberField/checkbox renders when untouched — so a field
   // the user left at its on-screen default (e.g. "0" incidents, left alone
-  // because there genuinely were none) still gets saved as that value,
-  // instead of silently being left out of the sheet entirely (which made a
-  // true "0" read back as "no data" / "-" later, not PASS).
+  // because there genuinely were none) is treated as that real value
+  // immediately (live %/status preview included), not as "no data yet".
   function allFieldSlots(): { indicator: string; field: string; fallback: string }[] {
     const slots: { indicator: string; field: string; fallback: string }[] = [];
     for (const indicator of KPI_INDICATORS) {
@@ -147,6 +130,29 @@ export function KpiEntryForm() {
     }
     return slots;
   }
+
+  // Build a "draft" records array (defaults + saved + in-progress edits, in
+  // that priority) so the live computed %/status readouts match exactly
+  // what the inputs show on screen — including an untouched field's default
+  // (e.g. safety incidents defaulting to 0 should read as PASS right away,
+  // not only after the user types into that field and back out).
+  const draftRecords: KpiRecordRow[] = useMemo(() => {
+    const others = records.filter((r) => !(r.year === year && r.month === month));
+    const current = new Map<string, string>();
+    for (const slot of allFieldSlots()) {
+      if (slot.fallback !== "") current.set(keyOf(slot.indicator, slot.field), slot.fallback);
+    }
+    for (const r of records) {
+      if (r.year === year && r.month === month) current.set(keyOf(r.indicator, r.field), r.value);
+    }
+    for (const [k, v] of Object.entries(edits)) current.set(k, v);
+    const merged = Array.from(current.entries()).map(([k, value]) => {
+      const [indicator, field] = k.split("|||");
+      return { year, month, indicator, field, value };
+    });
+    return [...others, ...merged];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, edits, year, month, attendanceTotal]);
 
   async function handleSubmit() {
     setSaving(true);
@@ -269,6 +275,20 @@ export function KpiEntryForm() {
 
                   {indicator.kind === "ratio_editable" && (
                     <div className="space-y-2">
+                      {indicator.directField && (
+                        <div className="flex flex-wrap items-end gap-4 border-b border-base-content/8 pb-2">
+                          <NumberField
+                            label={indicator.directField.label}
+                            unit="%"
+                            value={rawValue(indicator.id, indicator.directField.key, "")}
+                            onChange={(v) => setField(indicator.id, indicator.directField!.key, v)}
+                          />
+                          <p className="max-w-sm text-[11px] text-base-content/35">
+                            ใช้เมื่อเดือนนั้นไม่มีข้อมูลนับรายเป็นจำนวนคน (เหมือนไฟล์ต้นฉบับที่บางเดือนกรอก % ตรง ๆ) —
+                            ถ้ากรอกจำนวนทั้ง 2 ช่องด้านล่างไว้แล้ว ระบบจะใช้ค่าที่คำนวณจากจำนวนก่อนเสมอ
+                          </p>
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-end gap-4">
                         <NumberField
                           label={indicator.numerator.label}
@@ -285,20 +305,6 @@ export function KpiEntryForm() {
                         ค่าตั้งต้นดึงจากฐานข้อมูลที่ 1 ({attendanceTotal.toLocaleString()} คน) แต่แก้ไขได้ —
                         เพราะตัวเลขในไฟล์เดิมของตัวชี้วัดนี้ไม่ตรงกับยอดรวมผู้รับบริการทุกเดือนเป๊ะเหมือนตัวชี้วัดข้อ 1
                       </p>
-                      {indicator.directField && (
-                        <div className="flex flex-wrap items-end gap-4 border-t border-base-content/8 pt-2">
-                          <NumberField
-                            label={indicator.directField.label}
-                            unit="%"
-                            value={rawValue(indicator.id, indicator.directField.key, "")}
-                            onChange={(v) => setField(indicator.id, indicator.directField!.key, v)}
-                          />
-                          <p className="max-w-sm text-[11px] text-base-content/35">
-                            ใช้เมื่อเดือนนั้นไม่มีข้อมูลนับรายเป็นจำนวนคน (เหมือนไฟล์ต้นฉบับที่บางเดือนกรอก % ตรง ๆ) —
-                            ถ้ากรอกจำนวนทั้ง 2 ช่องด้านบนไว้แล้ว ระบบจะใช้ค่าที่คำนวณจากจำนวนก่อนเสมอ
-                          </p>
-                        </div>
-                      )}
                     </div>
                   )}
 
