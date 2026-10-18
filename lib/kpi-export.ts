@@ -102,7 +102,7 @@ export async function buildKpiWorkbook(
   ws.getRow(1).height = 26;
 
   // Header row
-  const headerLabels = ["ลำดับ", "ตัวชี้วัด", "เกณฑ์ประเมิน", ...monthLabels, "รวม"];
+  const headerLabels = ["ลำดับที่", "ตัวชี้วัด", "เกณฑ์ประเมิน", ...monthLabels, "รวม"];
   const headerRow = ws.getRow(2);
   headerLabels.forEach((label, i) => {
     const cell = headerRow.getCell(i + 1);

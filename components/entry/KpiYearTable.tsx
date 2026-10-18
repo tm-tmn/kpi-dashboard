@@ -67,7 +67,7 @@ export function KpiYearTable({ records, attendance }: { records: KpiRecordRow[];
           <thead>
             <tr className="border-b border-base-content/10 text-base-content/50">
               <th className="sticky left-0 z-10 w-10 bg-base-100/90 py-2 pr-2 text-center font-medium backdrop-blur-sm">
-                ลำดับ
+                ลำดับที่
               </th>
               <th className="sticky left-10 z-10 min-w-[260px] bg-base-100/90 py-2 pr-3 text-left font-medium backdrop-blur-sm">
                 ตัวชี้วัด
