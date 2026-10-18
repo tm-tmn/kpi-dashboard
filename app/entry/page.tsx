@@ -14,7 +14,7 @@ export default function EntryPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("attendance");
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-24">
+    <div className="w-full space-y-6 pb-24">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-base-content sm:text-2xl">
           กรอกข้อมูลรายเดือน

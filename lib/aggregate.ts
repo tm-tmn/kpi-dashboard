@@ -67,6 +67,25 @@ export function fiscalYearByType(records: RecordRow[], fiscalYear: number, point
     .sort((a, b) => b.total - a.total);
 }
 
+/** Full year-at-a-glance table: one row per (จุดบริการ, ประเภท), monthly
+ * values Oct..Sep plus a yearly total. Powers the read-only summary table
+ * on the entry page so the user doesn't need to flip month-by-month. */
+export function fiscalYearTable(
+  records: RecordRow[],
+  fiscalYear: number,
+  pairs: { point: string; type: string }[]
+) {
+  const months = fiscalYearMonths(fiscalYear);
+  return pairs.map(({ point, type }) => {
+    const values = months.map(({ year, month }) =>
+      records
+        .filter((r) => r.year === year && r.month === month && r.point === point && r.type === type)
+        .reduce((s, r) => s + r.count, 0)
+    );
+    return { point, type, values, total: values.reduce((a, b) => a + b, 0) };
+  });
+}
+
 export function fiscalMonthLabels() {
   // Oct..Sep abbreviations
   return [MONTH_ABBR_TH[9], MONTH_ABBR_TH[10], MONTH_ABBR_TH[11], ...MONTH_ABBR_TH.slice(0, 9)];

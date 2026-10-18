@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-1 gap-6 px-4 py-4 sm:px-6 lg:px-8">
+    <div className="flex w-full flex-1 gap-6 px-4 py-4 sm:px-6 lg:px-10">
       {/* Desktop sidebar */}
       <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-60 shrink-0 flex-col gap-6 lg:flex">
         <div className="glass-panel flex h-full flex-col gap-6 rounded-box p-4">

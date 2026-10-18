@@ -256,7 +256,7 @@ export default function DashboardPage() {
           </BentoCard>
 
           {/* Donuts */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {SERVICE_POINTS.map((point, idx) => {
               const data = fiscalYearByType(records, fiscalYear!, point);
               if (!data.length) return null;
@@ -420,7 +420,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">

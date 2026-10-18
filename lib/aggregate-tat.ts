@@ -34,6 +34,30 @@ export function tatSeriesByPoint(records: TatRecordRow[], year: number, point: s
   });
 }
 
+/** Full year-at-a-glance table: one row per (จุดบริการ, ขั้นตอน), monthly
+ * values Jan..Dec (null = no data yet) plus a yearly average. */
+export function tatYearTable(
+  records: TatRecordRow[],
+  year: number,
+  points: readonly string[],
+  stages: readonly string[]
+) {
+  return points.flatMap((point) =>
+    stages.map((stage) => {
+      const values = Array.from({ length: 12 }, (_, i) => {
+        const month = i + 1;
+        const row = records.find(
+          (r) => r.year === year && r.month === month && r.point === point && r.stage === stage
+        );
+        return row ? row.minutes : null;
+      });
+      const nonNull = values.filter((v): v is number => v != null);
+      const avg = nonNull.length ? nonNull.reduce((a, b) => a + b, 0) / nonNull.length : null;
+      return { point, stage, values, avg };
+    })
+  );
+}
+
 /** Latest month's "รวมทั้งหมด" (overall TAT) per จุดบริการ, for a quick
  * headline stat row. Falls back to the most recent month with any data. */
 export function latestOverallTatByPoint(
