@@ -128,6 +128,6 @@ export function kpiYearTrend(
   const labels = [MONTH_ABBR_TH[9], MONTH_ABBR_TH[10], MONTH_ABBR_TH[11], ...MONTH_ABBR_TH.slice(0, 9)];
   return months.map(({ year, month }, i) => {
     const result = kpiMonthResult(indicator, kpiRecords, attendanceRecords, year, month);
-    return { month: labels[i], pct: result.pct };
+    return { month: labels[i], pct: result.pct, status: result.status };
   });
 }

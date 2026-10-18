@@ -681,27 +681,71 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* Trend lines */}
+          {/* Trend lines — a PASS/FAIL indicator (safety) is a status, not a
+              continuous quantity, so charting it as a 0–100 line that dips on
+              every incident reads as noise; it gets a month-by-month status
+              strip instead. The rest stay % line charts, with a shared 0–100
+              y-axis (extended only if real data genuinely exceeds 100%) so
+              scales read consistently across cards. */}
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {kpiTrendByIndicator.map(({ indicator, data }, idx) => (
               <BentoCard key={indicator.id} i={23 + idx} className="!p-5">
                 <h3 className="mb-1 text-xs font-semibold text-base-content/70">{indicator.shortName ?? indicator.name}</h3>
-                <ResponsiveContainer width="100%" height={180}>
-                  <LineChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} unit="%" />
-                    <Tooltip contentStyle={chartColors.tooltip} />
-                    <Line
-                      type="monotone"
-                      dataKey="pct"
-                      stroke="var(--color-opd)"
-                      strokeWidth={2.25}
-                      dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
-                      connectNulls
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                {indicator.kind === "incident" ? (
+                  <div className="flex h-[180px] flex-col justify-center gap-2">
+                    <div className="grid grid-cols-12 gap-1.5">
+                      {data.map((d, i) => (
+                        <div
+                          key={i}
+                          title={`${d.month}: ${d.status === "pass" ? "PASS" : d.status === "fail" ? "FAIL" : "ไม่มีข้อมูล"}`}
+                          className={`flex h-9 items-center justify-center rounded-field ${
+                            d.status === "pass"
+                              ? "bg-success/15 text-success"
+                              : d.status === "fail"
+                                ? "bg-error/15 text-error"
+                                : "bg-base-200/50 text-base-content/25"
+                          }`}
+                        >
+                          {d.status === "pass" ? (
+                            <CheckCircle2 size={14} />
+                          ) : d.status === "fail" ? (
+                            <XCircle size={14} />
+                          ) : (
+                            <span className="text-[10px]">–</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-12 gap-1.5">
+                      {data.map((d, i) => (
+                        <span key={i} className="text-center text-[9px] text-base-content/35">{d.month}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={data}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        domain={[0, (dataMax: number) => Math.max(100, Math.ceil(dataMax / 10) * 10)]}
+                        tick={{ fontSize: 11, fill: chartColors.axisTick }}
+                        axisLine={false}
+                        tickLine={false}
+                        unit="%"
+                      />
+                      <Tooltip contentStyle={chartColors.tooltip} />
+                      <Line
+                        type="monotone"
+                        dataKey="pct"
+                        stroke="var(--color-opd)"
+                        strokeWidth={2.25}
+                        dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </BentoCard>
             ))}
           </div>
