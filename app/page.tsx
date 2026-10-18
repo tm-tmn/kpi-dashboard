@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
+  Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
 } from "recharts";
 import { KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
 import { SERVICE_POINTS, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths } from "@/lib/constants";
@@ -29,6 +29,46 @@ const TOOLTIP_STYLE = {
   fontSize: 12,
   color: "#E7EAF3",
 };
+
+// Ranked horizontal bar list — replaces the old per-point pie/donut for
+// "share by ประเภทผู้รับบริการ". A pie's slice labels collide once there
+// are 4+ categories with long Thai names; a bar list has room for the full
+// label, the raw count, and the % side by side, with no overlap risk.
+function TypeBreakdownBars({
+  data, palette,
+}: { data: { type: string; total: number }[]; palette: string[] }) {
+  const total = data.reduce((s, d) => s + d.total, 0);
+  const max = Math.max(...data.map((d) => d.total), 1);
+  return (
+    <div className="space-y-2.5">
+      {data.map((d, i) => {
+        const pct = total > 0 ? (d.total / total) * 100 : 0;
+        const widthPct = (d.total / max) * 100;
+        const color = palette[i % palette.length];
+        return (
+          <div key={d.type} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+              <span className="truncate text-xs text-base-content/60" title={d.type}>{d.type}</span>
+            </div>
+            <div className="stat-figure-num w-14 shrink-0 text-right text-xs text-base-content/70">
+              {d.total.toLocaleString()}
+            </div>
+            <div className="w-10 shrink-0 text-right text-[11px] font-semibold" style={{ color }}>
+              {pct.toFixed(0)}%
+            </div>
+            <div className="col-span-3 h-1.5 overflow-hidden rounded-full bg-white/6">
+              <div
+                className="h-full rounded-full transition-[width]"
+                style={{ width: `${widthPct}%`, background: color }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function Skeleton() {
   return (
@@ -325,14 +365,20 @@ export default function DashboardPage() {
               <span className="text-xs text-base-content/40">ปีงบ {fiscalYear}</span>
             </div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyChartData} barCategoryGap={18}>
+              <BarChart data={monthlyChartData} barCategoryGap={18} barSize={24}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 12, fill: "#8C98B8" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
                 <Legend wrapperStyle={{ fontSize: 12, color: "#8C98B8" }} />
-                {SERVICE_POINTS.map((p) => (
-                  <Bar key={p} dataKey={p} stackId="a" fill={pointMeta(p).color} radius={[0, 0, 0, 0]}>
+                {SERVICE_POINTS.map((p, pIdx) => (
+                  <Bar
+                    key={p}
+                    dataKey={p}
+                    stackId="a"
+                    fill={pointMeta(p).color}
+                    radius={pIdx === SERVICE_POINTS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  >
                     {monthlyChartData.map((_, i) => (
                       <Cell key={i} fillOpacity={monthIndex === "all" || monthIndex === i ? 1 : 0.25} />
                     ))}
@@ -342,59 +388,24 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </BentoCard>
 
-          {/* Donuts */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Share by ประเภทผู้รับบริการ, per จุดบริการ — ranked bar list */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {SERVICE_POINTS.map((point, idx) => {
               const data = selectedMonthPair
                 ? monthByType(records, selectedMonthPair.year, selectedMonthPair.month, point)
                 : fiscalYearByType(records, fiscalYear!, point);
               if (!data.length) return null;
               const meta = pointMeta(point);
-              const pointTotal = data.reduce((s, d) => s + d.total, 0);
               return (
-                <BentoCard key={point} i={6 + idx}>
-                  <div className="mb-1 flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-base-content/70">{point}</h3>
+                <BentoCard key={point} i={6 + idx} className="!p-5">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-xs font-semibold text-base-content/70">
+                      <span className="h-2 w-2 rounded-full" style={{ background: meta.color }} />
+                      {point}
+                    </h3>
                     <span className="text-[11px] text-base-content/35">{scopeLabel}</span>
                   </div>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <PieChart>
-                      <Pie
-                        data={data}
-                        dataKey="total"
-                        nameKey="type"
-                        innerRadius={48}
-                        outerRadius={78}
-                        paddingAngle={3}
-                        stroke="none"
-                        label={({ value }) =>
-                          pointTotal > 0 ? `${((Number(value) / pointTotal) * 100).toFixed(0)}%` : ""
-                        }
-                        labelLine={false}
-                        fontSize={11}
-                      >
-                        {data.map((_, i) => (
-                          <Cell key={i} fill={meta.palette[i % meta.palette.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={TOOLTIP_STYLE}
-                        formatter={(value, name) => {
-                          const v = Number(value) || 0;
-                          const pct = pointTotal > 0 ? ((v / pointTotal) * 100).toFixed(1) : "0";
-                          return [`${v.toLocaleString()} (${pct}%)`, name];
-                        }}
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: 11, color: "#8C98B8" }}
-                        formatter={(value, entry) => {
-                          const v = (entry as unknown as { payload?: { total?: number } }).payload?.total ?? 0;
-                          const pct = pointTotal > 0 ? (v / pointTotal) * 100 : 0;
-                          return `${value} (${pct.toFixed(0)}%)`;
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <TypeBreakdownBars data={data} palette={meta.palette} />
                 </BentoCard>
               );
             })}
