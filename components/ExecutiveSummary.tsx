@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle2, XCircle, TrendingUp, TrendingDown, ShieldCheck } from "lucide-react";
 import type { KpiIndicator } from "@/lib/constants";
@@ -23,12 +24,17 @@ export function ExecutiveSummary({
   icons,
   accents,
   monthLabel,
+  controls,
   i = 0,
 }: {
   items: ExecutiveSummaryItem[];
   icons: Record<string, LucideIcon>;
   accents: string[];
   monthLabel: string;
+  /** Optional month/year picker (or any other control) rendered next to the
+   * month label, so the caller decides how the viewed month is chosen
+   * without this component needing to know about fiscal-year logic. */
+  controls?: ReactNode;
   i?: number;
 }) {
   if (!items.length) return null;
@@ -37,15 +43,17 @@ export function ExecutiveSummary({
 
   return (
     <BentoCard i={i} className="!p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="icon-badge flex h-7 w-7 items-center justify-center rounded-field bg-primary/15 text-primary">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="icon-badge flex h-7 w-7 shrink-0 items-center justify-center rounded-field bg-primary/15 text-primary">
             <ShieldCheck size={14} strokeWidth={2.2} />
           </span>
           <h2 className="text-sm font-semibold text-base-content">สรุปภาพรวมตัวชี้วัดคุณภาพ</h2>
           <span className="text-xs text-base-content/40">· {monthLabel}</span>
         </div>
-        <div className="flex items-center gap-2 text-xs font-medium">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+          {controls}
+          <div className="flex items-center gap-2 text-xs font-medium">
           {failCount > 0 && (
             <span className="flex items-center gap-1 rounded-field bg-error/15 px-2 py-0.5 text-error">
               <XCircle size={11} /> ไม่ผ่าน {failCount}
@@ -54,6 +62,7 @@ export function ExecutiveSummary({
           <span className="flex items-center gap-1 rounded-field bg-success/15 px-2 py-0.5 text-success">
             <CheckCircle2 size={11} /> ผ่าน {passCount}/{items.length}
           </span>
+          </div>
         </div>
       </div>
 

@@ -10,8 +10,6 @@
   },
   "dependencies": {
     "daisyui": "^5.7.50",
-    "echarts": "^6.1.0",
-    "echarts-gl": "^2.1.0",
     "exceljs": "^4.4.0",
     "googleapis": "^186.0.0",
     "lucide-react": "^1.59.0",
