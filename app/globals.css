@@ -336,69 +336,24 @@ body {
   animation-delay: calc(min(var(--bento-i, 0), 8) * 70ms);
 }
 
-/* ---------- Experimental 3D dashboard view (see lib/use3DView.ts /
-   components/Dashboard3DView.tsx — an opt-in, cleanly removable feature) ---------- */
-.view3d-stage {
-  position: relative;
+/* ---------- Experimental 3D chart view — scoped to individual charts only
+   (see lib/use3DView.ts / components/Chart3DCard.tsx). Everything that
+   isn't a chart (KPI number tiles, tables, entry forms) is untouched. ---------- */
+.chart3d-stage {
   perspective: 2200px;
 }
-.view3d-card {
-  position: relative;
+.chart3d-plane {
   transform-style: preserve-3d;
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
-}
-.view3d-card.is-dragging {
-  transition: none;
-}
-.view3d-face {
-  backface-visibility: hidden;
-}
-.view3d-face-front {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), filter 0.25s ease;
   cursor: grab;
+  border-radius: inherit;
+  /* A grounded "floor shadow" so the tilt reads as a plane lifted off the
+     page, not just a flat chart that moved. */
+  filter: drop-shadow(0 22px 18px rgba(0, 0, 0, 0.35));
 }
-.view3d-card.is-dragging .view3d-face-front {
+.chart3d-plane.is-dragging {
+  transition: filter 0.25s ease;
   cursor: grabbing;
-}
-.view3d-face-back {
-  position: absolute;
-  inset: 0;
-  min-height: 100%;
-  transform: rotateY(180deg);
-  border-radius: 1.5rem;
-  background: linear-gradient(
-    160deg,
-    color-mix(in oklab, var(--color-primary) 20%, var(--color-base-200)),
-    var(--color-base-300)
-  );
-  color: color-mix(in oklab, var(--color-base-content) 75%, transparent);
-}
-.view3d-back-content {
-  /* The back face spans the whole (often tall, scrollable) page height, so
-     its logo/text is pinned near the viewport's vertical center via
-     `sticky` instead of flex-centering across the full height — otherwise
-     it would only be on screen if scrolled to exactly the right spot. */
-  position: sticky;
-  top: 35vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-  text-align: center;
-  padding: 2rem;
-}
-.view3d-back-drop {
-  color: var(--color-primary);
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.25));
-}
-.view3d-back-title {
-  max-width: 20rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-.view3d-back-sub {
-  font-size: 0.8rem;
-  opacity: 0.6;
 }
 .view3d-controls {
   position: fixed;
