@@ -21,13 +21,14 @@ import {
   TatRecordRow, availableTatYears, tatSeriesByPoint, tatMonthLabels,
 } from "@/lib/aggregate-tat";
 import {
-  KpiRecordRow, kpiMonthResult, kpiYearTrend,
+  KpiRecordRow, kpiMonthResult, kpiYearTrend, kpiStatus,
 } from "@/lib/aggregate-kpi";
 import { CountUp } from "@/components/CountUp";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { LiveClock } from "@/components/LiveClock";
+import { ExecutiveSummary } from "@/components/ExecutiveSummary";
 import { useTheme } from "@/lib/useTheme";
 
 // Ranked horizontal bar list — replaces the old per-point pie/donut for
@@ -296,9 +297,35 @@ export default function DashboardPage() {
   // The single most actionable thing a dashboard viewer wants surfaced
   // immediately: which quality indicators missed this month's target.
   const failedKpis = useMemo(
-    () => kpiResults.filter((r) => r.result.status === "fail"),
+    () => kpiResults.filter((r) => kpiStatus(r.indicator, r.result) === "fail"),
     [kpiResults]
   );
+
+  // The (year, month) immediately before kpiLatestMonth, so the executive
+  // summary can show a month-over-month trend arrow per indicator.
+  const kpiPrevMonthPair = useMemo(() => {
+    if (!kpiLatestMonth) return null;
+    const month = kpiLatestMonth.month === 1 ? 12 : kpiLatestMonth.month - 1;
+    const year = kpiLatestMonth.month === 1 ? kpiLatestMonth.year - 1 : kpiLatestMonth.year;
+    return { year, month };
+  }, [kpiLatestMonth]);
+
+  // One-page-glance summary: PASS/FAIL per indicator (evaluated against its
+  // own target, direction-aware) plus a trend arrow vs. last month.
+  const executiveSummary = useMemo(() => {
+    if (!kpiLatestMonth) return [];
+    return kpiResults.map(({ indicator, result }) => {
+      const prevResult = kpiPrevMonthPair
+        ? kpiMonthResult(indicator, kpiRecords, records, kpiPrevMonthPair.year, kpiPrevMonthPair.month)
+        : null;
+      const status = kpiStatus(indicator, result);
+      let trend: "up" | "down" | null = null;
+      if (result.pct != null && prevResult?.pct != null && result.pct !== prevResult.pct) {
+        trend = result.pct > prevResult.pct ? "up" : "down";
+      }
+      return { indicator, result, status, trend };
+    });
+  }, [kpiResults, kpiLatestMonth, kpiPrevMonthPair, kpiRecords, records]);
 
   // Each indicator's own-year trend, plus the prior fiscal year's same 12
   // months merged in alongside it (by month position — both start in
@@ -347,6 +374,15 @@ export default function DashboardPage() {
           type="warning"
           title={`ตัวชี้วัดคุณภาพไม่ผ่านเกณฑ์ ${failedKpis.length} รายการ · ${MONTH_NAMES_TH[(kpiLatestMonth?.month ?? 1) - 1]} ${kpiLatestMonth?.year}`}
           message={failedKpis.map((k) => k.indicator.shortName ?? k.indicator.name).join(" · ")}
+        />
+      )}
+
+      {kpiLatestMonth && (
+        <ExecutiveSummary
+          items={executiveSummary}
+          icons={KPI_ICON_META}
+          accents={KPI_ACCENTS}
+          monthLabel={`${MONTH_NAMES_TH[kpiLatestMonth.month - 1]} ${kpiLatestMonth.year}`}
         />
       )}
 

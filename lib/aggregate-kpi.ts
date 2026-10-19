@@ -116,6 +116,20 @@ export function kpiMonthResult(
   }
 }
 
+/** PASS/FAIL against the indicator's own target, direction-aware (some
+ * targets are a floor to clear — "max" — others a ceiling not to cross —
+ * "min"). "incident" already carries its own status straight out of
+ * kpiMonthResult (a plain count, not a % against a target), so that one is
+ * passed through unchanged; every other kind is evaluated here instead of
+ * leaving result.status null. Returns null when there's no pct yet or the
+ * indicator has no target to judge it against. */
+export function kpiStatus(indicator: KpiIndicator, result: KpiMonthResult): "pass" | "fail" | null {
+  if (result.status === "pass" || result.status === "fail") return result.status;
+  if (result.pct == null || !indicator.target) return null;
+  const { value, direction } = indicator.target;
+  return direction === "min" ? (result.pct <= value ? "pass" : "fail") : (result.pct >= value ? "pass" : "fail");
+}
+
 /** All fiscal years that have at least one KPI row. */
 export function availableKpiYears(records: KpiRecordRow[]): number[] {
   const set = new Set<number>();
