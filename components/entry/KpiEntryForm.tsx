@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearOf } from "@/lib/constants";
+import { KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearOf, fiscalYearMonthsFilled } from "@/lib/constants";
 import { monthTotal, RecordRow } from "@/lib/aggregate";
 import { kpiMonthResult, KpiRecordRow } from "@/lib/aggregate-kpi";
 import {
@@ -11,6 +11,7 @@ import type { LucideIcon } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { KpiYearTable } from "@/components/entry/KpiYearTable";
+import { CompletenessBadge } from "@/components/entry/CompletenessBadge";
 
 const now = new Date();
 const CURRENT_BE_YEAR = now.getFullYear() + 543;
@@ -65,6 +66,11 @@ export function KpiEntryForm() {
   }, []);
 
   const attendanceTotal = useMemo(() => monthTotal(attendance, year, month), [attendance, year, month]);
+  const selectedFiscalYear = fiscalYearOf(year, month);
+  const monthsFilled = useMemo(
+    () => fiscalYearMonthsFilled(records, selectedFiscalYear),
+    [records, selectedFiscalYear]
+  );
 
   // Raw string value for a field: saved value overlaid with any in-progress edit.
   function rawValue(indicator: string, field: string, fallback = ""): string {
@@ -213,8 +219,9 @@ export function KpiEntryForm() {
               </select>
             </div>
             <div className="badge badge-ghost border-base-content/10 text-xs text-base-content/50">
-              ปีงบประมาณ {fiscalYearOf(year, month)}
+              ปีงบประมาณ {selectedFiscalYear}
             </div>
+            <CompletenessBadge filled={monthsFilled} />
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
           </div>
         </BentoCard>

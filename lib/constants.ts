@@ -268,3 +268,12 @@ export function fiscalYearMonths(fiscalYear: number): { year: number; month: num
   }
   return months;
 }
+
+/** How many of a fiscal year's 12 months have at least one row in `rows`.
+ * Used for the "กรอกแล้ว X/12 เดือน" completeness badge on entry forms —
+ * works for any record shape (KPI, attendance, TAT) since it only reads
+ * the shared year/month fields. */
+export function fiscalYearMonthsFilled(rows: { year: number; month: number }[], fiscalYear: number): number {
+  const present = new Set(rows.map((r) => `${r.year}-${r.month}`));
+  return fiscalYearMonths(fiscalYear).filter(({ year, month }) => present.has(`${year}-${month}`)).length;
+}

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { SERVICE_POINTS, TAT_STAGES, MONTH_NAMES_TH } from "@/lib/constants";
+import { SERVICE_POINTS, TAT_STAGES, MONTH_NAMES_TH, fiscalYearOf, fiscalYearMonthsFilled } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import { TAT_STAGE_META } from "@/lib/constants";
 import { Loader2, Save, Timer } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { TatYearTable } from "@/components/entry/TatYearTable";
+import { CompletenessBadge } from "@/components/entry/CompletenessBadge";
 
 type TatRecordRow = {
   year: number;
@@ -63,6 +64,12 @@ export function TatEntryForm() {
     setEdits({});
     setStatus(null);
   }, [year, month]);
+
+  const selectedFiscalYear = fiscalYearOf(year, month);
+  const monthsFilled = useMemo(
+    () => fiscalYearMonthsFilled(records, selectedFiscalYear),
+    [records, selectedFiscalYear]
+  );
 
   const overallAvg = useMemo(() => {
     const totalStage = TAT_STAGES[3];
@@ -146,6 +153,7 @@ export function TatEntryForm() {
             <div className="badge badge-ghost border-base-content/10 text-xs text-base-content/50">
               ช่วงเวลา 6.00-9.00 น.
             </div>
+            <CompletenessBadge filled={monthsFilled} />
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
           </div>
         </BentoCard>

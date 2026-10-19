@@ -6,12 +6,14 @@ import {
   SERVICE_POINTS,
   MONTH_NAMES_TH,
   fiscalYearOf,
+  fiscalYearMonthsFilled,
 } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import { Loader2, Save, Users } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { AttendanceYearTable } from "@/components/entry/AttendanceYearTable";
+import { CompletenessBadge } from "@/components/entry/CompletenessBadge";
 
 type RecordRow = {
   year: number;
@@ -88,6 +90,12 @@ export function AttendanceEntryForm() {
     0
   );
 
+  const selectedFiscalYear = fiscalYearOf(year, month);
+  const monthsFilled = useMemo(
+    () => fiscalYearMonthsFilled(records, selectedFiscalYear),
+    [records, selectedFiscalYear]
+  );
+
   async function handleSubmit() {
     setSaving(true);
     setStatus(null);
@@ -162,8 +170,9 @@ export function AttendanceEntryForm() {
               </select>
             </div>
             <div className="badge badge-ghost border-base-content/10 text-xs text-base-content/50">
-              ปีงบประมาณ {fiscalYearOf(year, month)}
+              ปีงบประมาณ {selectedFiscalYear}
             </div>
+            <CompletenessBadge filled={monthsFilled} />
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
           </div>
         </BentoCard>
