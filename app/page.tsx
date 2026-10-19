@@ -12,9 +12,10 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
-  SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths,
+  SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, withPmGroups, MONTH_NAMES_TH, fiscalYearMonths,
   fiscalYearMonthsFilled,
 } from "@/lib/constants";
+import type { PmMachine } from "@/lib/sheets-pm-machines";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
@@ -193,6 +194,8 @@ export default function DashboardPage() {
   const [kpiRecords, setKpiRecords] = useState<KpiRecordRow[]>([]);
   const [kpiError, setKpiError] = useState<string | null>(null);
 
+  const [pmMachines, setPmMachines] = useState<PmMachine[]>([]);
+
   useEffect(() => {
     fetch("/api/records")
       .then((r) => r.json())
@@ -222,7 +225,23 @@ export default function DashboardPage() {
         setKpiRecords(data.records ?? []);
       })
       .catch((e) => setKpiError(String(e)));
+
+    fetch("/api/pm-machines")
+      .then((r) => r.json())
+      .then((data: { machines?: PmMachine[]; error?: string }) => {
+        if (data.error) return;
+        setPmMachines(data.machines ?? []);
+      })
+      .catch(() => {});
   }, []);
+
+  // Admin-managed PM machines (lib/sheets-pm-machines.ts), active ones only
+  // — a retired machine drops off the live dashboard/trend calculations
+  // immediately, though its past rows stay in the "ตัวชี้วัด" sheet untouched.
+  const kpiIndicators = useMemo(
+    () => withPmGroups(pmMachines.filter((m) => m.active).map((m) => ({ key: m.key, label: m.label }))),
+    [pmMachines]
+  );
 
   const years = useMemo(() => availableFiscalYears(records), [records]);
   const byPoint = useMemo(
@@ -381,11 +400,11 @@ export default function DashboardPage() {
 
   const kpiResults = useMemo(() => {
     if (!kpiViewPair) return [];
-    return KPI_INDICATORS.map((indicator) => ({
+    return kpiIndicators.map((indicator) => ({
       indicator,
       result: kpiMonthResult(indicator, kpiRecords, records, kpiViewPair.year, kpiViewPair.month),
     }));
-  }, [kpiRecords, records, kpiViewPair]);
+  }, [kpiRecords, records, kpiViewPair, kpiIndicators]);
 
   // The single most actionable thing a dashboard viewer wants surfaced
   // immediately: which quality indicators missed the viewed month's target.
@@ -426,14 +445,14 @@ export default function DashboardPage() {
   // year's for an at-a-glance YoY comparison.
   const kpiTrendByIndicator = useMemo(() => {
     if (!fiscalYear) return [];
-    return KPI_INDICATORS.map((indicator) => {
+    return kpiIndicators.map((indicator) => {
       const current = kpiYearTrend(indicator, kpiRecords, records, fiscalYear);
       const prev = kpiYearTrend(indicator, kpiRecords, records, fiscalYear - 1);
       const hasPrevData = prev.some((d) => d.pct != null);
       const data = current.map((d, i) => ({ ...d, pctPrev: prev[i]?.pct ?? null }));
       return { indicator, data, hasPrevData };
     });
-  }, [kpiRecords, records, fiscalYear]);
+  }, [kpiRecords, records, fiscalYear, kpiIndicators]);
 
   let content: React.ReactNode;
 

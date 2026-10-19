@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readAllKpiRecords, saveKpiMonth } from "@/lib/sheets-kpi";
-import { KPI_INDICATORS, kpiFieldType } from "@/lib/constants";
+import { withPmGroups, kpiFieldType } from "@/lib/constants";
+import { readAllPmMachines } from "@/lib/sheets-pm-machines";
 
 // Same pattern as /api/records and /api/tat — live read on every GET, no
 // prerendering/caching.
@@ -37,7 +38,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ปี พ.ศ. ไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const indicatorById = new Map(KPI_INDICATORS.map((k) => [k.id, k]));
+    // Validate against every configured machine (active or retired), not
+    // just the active ones the entry form currently renders — so a save
+    // already in flight when an admin retires a machine mid-session doesn't
+    // get rejected as "invalid field".
+    const pmMachines = await readAllPmMachines();
+    const indicators = withPmGroups(pmMachines.map((m) => ({ key: m.key, label: m.label })));
+    const indicatorById = new Map(indicators.map((k) => [k.id, k]));
     // Each entry's value is checked against what that specific field is
     // allowed to hold (count / percent / boolean) rather than passed through
     // as-is — this both rejects nonsense (e.g. 150% satisfaction, a negative

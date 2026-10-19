@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearOf, fiscalYearMonthsFilled } from "@/lib/constants";
+import { withPmGroups, MONTH_NAMES_TH, fiscalYearOf, fiscalYearMonthsFilled } from "@/lib/constants";
 import { monthTotal, RecordRow } from "@/lib/aggregate";
 import { kpiMonthResult, KpiRecordRow } from "@/lib/aggregate-kpi";
 import {
-  Loader2, Save, ShieldCheck, Info, XCircle, Wrench, Timer, Smile, MessageSquareWarning,
+  Loader2, Save, ShieldCheck, Info, XCircle, Wrench, Timer, Smile, MessageSquareWarning, Settings2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { PmMachine } from "@/lib/sheets-pm-machines";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { KpiYearTable } from "@/components/entry/KpiYearTable";
 import { CompletenessBadge } from "@/components/entry/CompletenessBadge";
+import { PmMachinesAdmin } from "@/components/entry/PmMachinesAdmin";
 
 const now = new Date();
 const CURRENT_BE_YEAR = now.getFullYear() + 543;
@@ -47,6 +49,18 @@ export function KpiEntryForm() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [pmMachines, setPmMachines] = useState<PmMachine[]>([]);
+  const [pmAdminOpen, setPmAdminOpen] = useState(false);
+
+  function loadPmMachines() {
+    fetch("/api/pm-machines")
+      .then((r) => r.json())
+      .then((data: { machines?: PmMachine[]; error?: string }) => {
+        if (data.error) return;
+        setPmMachines(data.machines ?? []);
+      })
+      .catch(() => {});
+  }
 
   useEffect(() => {
     Promise.all([
@@ -63,7 +77,15 @@ export function KpiEntryForm() {
       })
       .catch((e) => setStatus({ type: "err", text: String(e) }))
       .finally(() => setLoading(false));
+    loadPmMachines();
   }, []);
+
+  // Admin-managed PM machines, active ones only — see app/page.tsx for the
+  // same pattern on the dashboard side.
+  const KPI_INDICATORS = useMemo(
+    () => withPmGroups(pmMachines.filter((m) => m.active).map((m) => ({ key: m.key, label: m.label }))),
+    [pmMachines]
+  );
 
   const attendanceTotal = useMemo(() => monthTotal(attendance, year, month), [attendance, year, month]);
   const selectedFiscalYear = fiscalYearOf(year, month);
@@ -253,6 +275,16 @@ export function KpiEntryForm() {
                       </div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-1.5">
+                  {indicator.kind === "pm" && (
+                    <button
+                      onClick={() => setPmAdminOpen(true)}
+                      className="btn btn-ghost btn-xs gap-1 text-base-content/50"
+                    >
+                      <Settings2 size={13} />
+                      จัดการเครื่อง
+                    </button>
+                  )}
                   {(result.pct != null || result.note) && (
                     <div
                       className={`rounded-field px-2.5 py-1 text-sm font-bold ${
@@ -269,6 +301,7 @@ export function KpiEntryForm() {
                       {result.note ?? `${result.pct!.toFixed(indicator.decimals ?? 1)}%`}
                     </div>
                   )}
+                  </div>
                 </div>
 
                 <div className="p-5">
@@ -437,6 +470,12 @@ export function KpiEntryForm() {
       </div>
 
       <KpiYearTable records={records} attendance={attendance} />
+
+      <PmMachinesAdmin
+        open={pmAdminOpen}
+        onClose={() => setPmAdminOpen(false)}
+        onSaved={loadPmMachines}
+      />
     </div>
   );
 }

@@ -222,6 +222,17 @@ export const KPI_INDICATORS: KpiIndicator[] = [
   },
 ];
 
+/** Build the indicator list with the "pm" indicator's `groups` replaced by
+ * a live, admin-managed list of PM machines (lib/sheets-pm-machines.ts) —
+ * so adding/renaming/retiring a machine never needs a code change. Falls
+ * back to the original hardcoded `KPI_INDICATORS` when `groups` is empty
+ * (sheet not set up yet, or unreachable), so the app behaves exactly as it
+ * did before this feature existed. */
+export function withPmGroups(groups: { key: string; label: string }[]): KpiIndicator[] {
+  if (groups.length === 0) return KPI_INDICATORS;
+  return KPI_INDICATORS.map((indicator) => (indicator.kind === "pm" ? { ...indicator, groups } : indicator));
+}
+
 export type KpiFieldType = "count" | "percent" | "boolean";
 
 /** What kind of value a given (indicator, field) holds — used for

@@ -10,7 +10,8 @@ export async function proxy(req: NextRequest) {
   const isWriteApi =
     (pathname.startsWith("/api/records") ||
       pathname.startsWith("/api/tat") ||
-      pathname.startsWith("/api/kpi")) &&
+      pathname.startsWith("/api/kpi") ||
+      pathname.startsWith("/api/pm-machines")) &&
     req.method === "POST";
 
   const needsAuth = pathname.startsWith("/entry") || isWriteApi;
@@ -37,5 +38,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/entry", "/entry/:path*", "/api/records", "/api/tat", "/api/kpi"],
+  matcher: ["/entry", "/entry/:path*", "/api/records", "/api/tat", "/api/kpi", "/api/pm-machines"],
 };
