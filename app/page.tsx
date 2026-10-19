@@ -176,6 +176,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fiscalYear, setFiscalYear] = useState<number | null>(null);
+  const [showYoY, setShowYoY] = useState(true);
   // "all" = whole fiscal year (default); a number 0..11 = one fiscal-order
   // month index (0 = ต.ค., 11 = ก.ย.) to drill the dashboard into.
   const [monthIndex, setMonthIndex] = useState<number | "all">("all");
@@ -299,12 +300,19 @@ export default function DashboardPage() {
     [kpiResults]
   );
 
+  // Each indicator's own-year trend, plus the prior fiscal year's same 12
+  // months merged in alongside it (by month position — both start in
+  // October) so the chart can draw a dashed "last year" line next to this
+  // year's for an at-a-glance YoY comparison.
   const kpiTrendByIndicator = useMemo(() => {
     if (!fiscalYear) return [];
-    return KPI_INDICATORS.map((indicator) => ({
-      indicator,
-      data: kpiYearTrend(indicator, kpiRecords, records, fiscalYear),
-    }));
+    return KPI_INDICATORS.map((indicator) => {
+      const current = kpiYearTrend(indicator, kpiRecords, records, fiscalYear);
+      const prev = kpiYearTrend(indicator, kpiRecords, records, fiscalYear - 1);
+      const hasPrevData = prev.some((d) => d.pct != null);
+      const data = current.map((d, i) => ({ ...d, pctPrev: prev[i]?.pct ?? null }));
+      return { indicator, data, hasPrevData };
+    });
   }, [kpiRecords, records, fiscalYear]);
 
   let content: React.ReactNode;
@@ -743,10 +751,23 @@ export default function DashboardPage() {
               (rejection ≤0.5%, PM/complaint/TAT30 near 90–100%), and a full
               0–100 scale buries that real movement. A dashed target line
               keeps the zoomed axis honest about where "pass" actually is. */}
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {kpiTrendByIndicator.map(({ indicator, data }, idx) => {
+          <div className="mb-3 mt-4 flex items-center justify-between gap-2">
+            <h3 className="text-xs font-medium text-base-content/50">แนวโน้มรายตัวชี้วัด</h3>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-base-content/60">
+              <input
+                type="checkbox"
+                className="toggle toggle-xs toggle-primary"
+                checked={showYoY}
+                onChange={(e) => setShowYoY(e.target.checked)}
+              />
+              เทียบปีงบก่อนหน้า (YoY)
+            </label>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {kpiTrendByIndicator.map(({ indicator, data, hasPrevData }, idx) => {
+              const showPrev = showYoY && hasPrevData;
               const axis = zoomedPercentAxis(
-                data.map((d) => d.pct),
+                showPrev ? data.flatMap((d) => [d.pct, d.pctPrev]) : data.map((d) => d.pct),
                 indicator.target?.value
               );
               return (
@@ -805,8 +826,11 @@ export default function DashboardPage() {
                       />
                       <Tooltip
                         contentStyle={chartColors.tooltip}
-                        formatter={(value) => [`${Number(value).toFixed(indicator.decimals ?? 1)}%`, indicator.shortName ?? indicator.name]}
+                        formatter={(value, name) => [`${Number(value).toFixed(indicator.decimals ?? 1)}%`, name]}
                       />
+                      {showPrev && (
+                        <Legend wrapperStyle={{ fontSize: 10, color: chartColors.axisTick }} />
+                      )}
                       {indicator.target && axis.targetInRange && (
                         <ReferenceLine
                           y={indicator.target.value}
@@ -821,10 +845,22 @@ export default function DashboardPage() {
                           }}
                         />
                       )}
+                      {showPrev && (
+                        <Line
+                          type="monotone"
+                          dataKey="pctPrev"
+                          name={`ปีงบ ${(fiscalYear ?? 0) - 1}`}
+                          stroke={chartColors.axisTick}
+                          strokeWidth={1.75}
+                          strokeDasharray="5 5"
+                          dot={false}
+                          connectNulls
+                        />
+                      )}
                       <Line
                         type="monotone"
                         dataKey="pct"
-                        name={indicator.shortName ?? indicator.name}
+                        name={showPrev ? `ปีงบ ${fiscalYear}` : (indicator.shortName ?? indicator.name)}
                         stroke="var(--color-opd)"
                         strokeWidth={2.25}
                         dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
