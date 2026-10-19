@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -8,7 +9,7 @@ import {
 } from "recharts";
 import {
   KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck,
-  CheckCircle2, XCircle, Wrench, Smile, MessageSquareWarning,
+  CheckCircle2, XCircle, Wrench, Smile, MessageSquareWarning, Box, LayoutGrid,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -35,6 +36,46 @@ import { ExecutiveSummary } from "@/components/ExecutiveSummary";
 import { TypeTatCorrelation } from "@/components/TypeTatCorrelation";
 import { linearForecastNextYear } from "@/lib/forecast";
 import { useTheme } from "@/lib/useTheme";
+
+// echarts-gl touches `window`/canvas at import time, so these can only ever
+// render client-side — ssr:false keeps Next from trying them during the
+// server render/build.
+const Monthly3DBarChart = dynamic(
+  () => import("@/components/Monthly3DBarChart").then((m) => m.Monthly3DBarChart),
+  { ssr: false, loading: () => <div className="flex h-[440px] items-center justify-center text-xs text-base-content/40">กำลังโหลดกราฟ 3 มิติ…</div> }
+);
+const TatSurface3D = dynamic(
+  () => import("@/components/TatSurface3D").then((m) => m.TatSurface3D),
+  { ssr: false, loading: () => <div className="flex h-[440px] items-center justify-center text-xs text-base-content/40">กำลังโหลดกราฟ 3 มิติ…</div> }
+);
+
+// Small pill toggle shown top-right of a chart card, for switching between
+// the flat 2D chart and its 3D counterpart — shared by both sections below
+// so the two toggles look and behave identically.
+function ChartModeToggle({ is3D, onChange }: { is3D: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center rounded-field bg-base-200/70 p-0.5 text-[11px] font-medium">
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        className={`flex items-center gap-1 rounded-field px-2 py-1 transition-colors ${
+          !is3D ? "bg-base-100 text-base-content shadow-sm" : "text-base-content/50"
+        }`}
+      >
+        <LayoutGrid size={11} /> 2D
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        className={`flex items-center gap-1 rounded-field px-2 py-1 transition-colors ${
+          is3D ? "bg-base-100 text-base-content shadow-sm" : "text-base-content/50"
+        }`}
+      >
+        <Box size={11} /> 3D
+      </button>
+    </div>
+  );
+}
 
 // Ranked horizontal bar list — replaces the old per-point pie/donut for
 // "share by ประเภทผู้รับบริการ". A pie's slice labels collide once there
@@ -186,6 +227,8 @@ export default function DashboardPage() {
   // "all" = whole fiscal year (default); a number 0..11 = one fiscal-order
   // month index (0 = ต.ค., 11 = ก.ย.) to drill the dashboard into.
   const [monthIndex, setMonthIndex] = useState<number | "all">("all");
+  const [monthly3D, setMonthly3D] = useState(false);
+  const [tat3D, setTat3D] = useState(false);
 
   const [tatRecords, setTatRecords] = useState<TatRecordRow[]>([]);
   const [tatYear, setTatYear] = useState<number | null>(null);
@@ -590,30 +633,43 @@ export default function DashboardPage() {
               <h2 className="text-sm font-semibold text-base-content">
                 จำนวนผู้รับบริการรายเดือน แยกตามจุดบริการ
               </h2>
-              <span className="text-xs text-base-content/40">ปีงบ {fiscalYear}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-base-content/40">ปีงบ {fiscalYear}</span>
+                <ChartModeToggle is3D={monthly3D} onChange={setMonthly3D} />
+              </div>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyChartData} barCategoryGap={18} barSize={24}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={chartColors.tooltip} cursor={{ fill: chartColors.cursor }} />
-                <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axisTick }} />
-                {SERVICE_POINTS.map((p, pIdx) => (
-                  <Bar
-                    key={p}
-                    dataKey={p}
-                    stackId="a"
-                    fill={pointMeta(p).color}
-                    radius={pIdx === SERVICE_POINTS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                  >
-                    {monthlyChartData.map((_, i) => (
-                      <Cell key={i} fillOpacity={monthIndex === "all" || monthIndex === i ? 1 : 0.25} />
-                    ))}
-                  </Bar>
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+            {monthly3D ? (
+              <Monthly3DBarChart
+                data={monthlyChartData}
+                points={SERVICE_POINTS}
+                pointColor={(p) => pointMeta(p).color}
+                pointShort={(p) => pointMeta(p).short}
+                isLight={isLight}
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={monthlyChartData} barCategoryGap={18} barSize={24}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={chartColors.tooltip} cursor={{ fill: chartColors.cursor }} />
+                  <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axisTick }} />
+                  {SERVICE_POINTS.map((p, pIdx) => (
+                    <Bar
+                      key={p}
+                      dataKey={p}
+                      stackId="a"
+                      fill={pointMeta(p).color}
+                      radius={pIdx === SERVICE_POINTS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    >
+                      {monthlyChartData.map((_, i) => (
+                        <Cell key={i} fillOpacity={monthIndex === "all" || monthIndex === i ? 1 : 0.25} />
+                      ))}
+                    </Bar>
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </BentoCard>
 
           {/* Share by ประเภทผู้รับบริการ, per จุดบริการ — ranked bar list */}
@@ -825,7 +881,29 @@ export default function DashboardPage() {
             </BentoCard>
           )}
 
-          <div className="mb-3 text-xs font-medium text-base-content/40">รายละเอียดแนวโน้มแต่ละจุดบริการ</div>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-medium text-base-content/40">รายละเอียดแนวโน้มแต่ละจุดบริการ</span>
+            <ChartModeToggle is3D={tat3D} onChange={setTat3D} />
+          </div>
+          {tat3D ? (
+            <BentoCard i={11} className="mb-4 !p-5">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-base-content">พื้นผิว 3 มิติ — รวมทั้งหมด (ออกคิว-ปิดงาน)</h3>
+                <span className="text-xs text-base-content/40">{tatYear}</span>
+              </div>
+              <TatSurface3D
+                pointsData={tatChartDataByPoint}
+                points={SERVICE_POINTS}
+                stage={TAT_STAGES[3]}
+                pointShort={(p) => pointMeta(p).short}
+                isLight={isLight}
+              />
+              <p className="mt-3 text-[11px] text-base-content/35">
+                ลากเพื่อหมุนมุมมอง, เลื่อนล้อเมาส์เพื่อซูม · แสดงเฉพาะสเตจ &quot;รวมทั้งหมด&quot; — ดูราย
+                สเตจย่อยที่มุมมอง 2D
+              </p>
+            </BentoCard>
+          ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {tatChartDataByPoint.map(({ point, data }, idx) => {
               const meta = pointMeta(point);
@@ -863,6 +941,7 @@ export default function DashboardPage() {
               );
             })}
           </div>
+          )}
 
           <div className="mt-4">
             <TypeTatCorrelation attendance={records} tatRecords={tatRecords} chartColors={chartColors} i={15} />
