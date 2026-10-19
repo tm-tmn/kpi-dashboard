@@ -29,6 +29,7 @@ import { StatusBanner } from "@/components/StatusBanner";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { LiveClock } from "@/components/LiveClock";
 import { ExecutiveSummary } from "@/components/ExecutiveSummary";
+import { TypeTatCorrelation } from "@/components/TypeTatCorrelation";
 import { useTheme } from "@/lib/useTheme";
 
 // Ranked horizontal bar list — replaces the old per-point pie/donut for
@@ -774,6 +775,10 @@ export default function DashboardPage() {
                 </BentoCard>
               );
             })}
+          </div>
+
+          <div className="mt-4">
+            <TypeTatCorrelation attendance={records} tatRecords={tatRecords} chartColors={chartColors} i={15} />
           </div>
         </>
       ) : (
