@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area,
+  Cell, Legend, LineChart, Line, CartesianGrid, AreaChart, Area, ReferenceLine,
 } from "recharts";
 import {
   KeyRound, TrendingUp, TrendingDown, Users, CalendarClock, Droplet, Timer, ShieldCheck,
-  XCircle, Wrench, Smile, MessageSquareWarning,
+  CheckCircle2, XCircle, Wrench, Smile, MessageSquareWarning,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -24,7 +24,7 @@ import {
   TatRecordRow, availableTatYears, tatSeriesByPoint, tatMonthLabels, tatByPointForMonth,
 } from "@/lib/aggregate-tat";
 import {
-  KpiRecordRow, kpiMonthResult, kpiStatus, availableKpiYears,
+  KpiRecordRow, kpiMonthResult, kpiYearTrend, kpiStatus, availableKpiYears,
 } from "@/lib/aggregate-kpi";
 import { CountUp } from "@/components/CountUp";
 import { BentoCard } from "@/components/BentoCard";
@@ -95,6 +95,57 @@ const KPI_ACCENTS = [
   "var(--color-secondary)",
 ];
 
+// A shared 0–100 y-axis reads consistently across cards, but it also
+// flattens any indicator whose real values and target both sit near one end
+// of that range (e.g. rejection rate ≤0.5%, or PM/complaint/TAT30/satisfaction
+// clustered near their 90–100% target) into what looks like a flat line —
+// the variance that actually matters is too small a fraction of 100 to see.
+// Zooming the axis to the data + target (with a dashed target reference line
+// so the threshold stays visible) keeps the chart honest while making real
+// month-to-month movement legible.
+function niceStep(roughStep: number): number {
+  if (roughStep <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const norm = roughStep / mag;
+  const step = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+  return step * mag;
+}
+
+function zoomedPercentAxis(values: (number | null | undefined)[], target?: number) {
+  const nums = values.filter((v): v is number => v != null);
+  if (nums.length === 0) return { domain: [0, 100] as [number, number], ticks: undefined, targetInRange: false };
+  const dataMin = Math.min(...nums);
+  const dataMax = Math.max(...nums);
+  const dataSpan = Math.max(dataMax - dataMin, dataMax * 0.1, 1);
+
+  // Fold the target into the zoomed range only if it's reasonably close to
+  // the real data (within ~2x the data's own spread). A target far outside
+  // the actual variance — satisfaction's 30% floor when real scores run
+  // 75-85%, say — would otherwise blow the zoom back out to the same wide,
+  // flat-looking range this is meant to fix. When that happens the target
+  // is shown as a badge next to the chart title instead of a line on it.
+  let lo = dataMin;
+  let hi = dataMax;
+  let targetInRange = target == null;
+  if (target != null) {
+    const distOutside = target < dataMin ? dataMin - target : target > dataMax ? target - dataMax : 0;
+    if (distOutside <= dataSpan * 2) {
+      lo = Math.min(lo, target);
+      hi = Math.max(hi, target);
+      targetInRange = true;
+    }
+  }
+
+  const span = Math.max(hi - lo, hi * 0.1, 1);
+  const step = niceStep(span / 4);
+  const loF = Math.max(0, Math.floor((lo - span * 0.25) / step) * step);
+  let hiF = Math.min(100, Math.ceil((hi + span * 0.25) / step) * step);
+  if (hiF <= loF) hiF = Math.min(100, loF + step);
+  const ticks: number[] = [];
+  for (let v = loF; v <= hiF + step / 2; v += step) ticks.push(Number(v.toFixed(6)));
+  return { domain: [loF, hiF] as [number, number], ticks, targetInRange };
+}
+
 function Skeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -133,6 +184,7 @@ export default function DashboardPage() {
   // "all" = whole fiscal year (default); a number 0..11 = one fiscal-order
   // month index (0 = ต.ค., 11 = ก.ย.) to drill the dashboard into.
   const [monthIndex, setMonthIndex] = useState<number | "all">("all");
+  const [showYoY, setShowYoY] = useState(true);
 
   const [tatRecords, setTatRecords] = useState<TatRecordRow[]>([]);
   const [tatYear, setTatYear] = useState<number | null>(null);
@@ -367,6 +419,21 @@ export default function DashboardPage() {
       return { indicator, result, status, trend };
     });
   }, [kpiResults, kpiViewPair, kpiPrevMonthPair, kpiRecords, records]);
+
+  // Each indicator's own-year trend, plus the prior fiscal year's same 12
+  // months merged in alongside it (by month position — both start in
+  // October) so the chart can draw a dashed "last year" line next to this
+  // year's for an at-a-glance YoY comparison.
+  const kpiTrendByIndicator = useMemo(() => {
+    if (!fiscalYear) return [];
+    return KPI_INDICATORS.map((indicator) => {
+      const current = kpiYearTrend(indicator, kpiRecords, records, fiscalYear);
+      const prev = kpiYearTrend(indicator, kpiRecords, records, fiscalYear - 1);
+      const hasPrevData = prev.some((d) => d.pct != null);
+      const data = current.map((d, i) => ({ ...d, pctPrev: prev[i]?.pct ?? null }));
+      return { indicator, data, hasPrevData };
+    });
+  }, [kpiRecords, records, fiscalYear]);
 
   let content: React.ReactNode;
 
@@ -871,6 +938,140 @@ export default function DashboardPage() {
             </>
           }
         />
+      )}
+
+      {/* Per-indicator trend charts — kept separate from the detailed score
+          tiles (removed per request): this is the "how did each indicator
+          move over the fiscal year" view, not a duplicate of the one-month
+          summary above. */}
+      {kpiTrendByIndicator.length > 0 && (
+        <>
+          <div className="mb-3 mt-8 flex items-center justify-between gap-2">
+            <h3 className="text-xs font-medium text-base-content/50">แนวโน้มรายตัวชี้วัด</h3>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-base-content/60">
+              <input
+                type="checkbox"
+                className="toggle toggle-xs toggle-primary"
+                checked={showYoY}
+                onChange={(e) => setShowYoY(e.target.checked)}
+              />
+              เทียบปีงบก่อนหน้า (YoY)
+            </label>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {kpiTrendByIndicator.map(({ indicator, data, hasPrevData }, idx) => {
+              const showPrev = showYoY && hasPrevData;
+              const axis = zoomedPercentAxis(
+                showPrev ? data.flatMap((d) => [d.pct, d.pctPrev]) : data.map((d) => d.pct),
+                indicator.target?.value
+              );
+              return (
+              <BentoCard key={indicator.id} i={23 + idx} className="!p-5">
+                <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <h3 className="text-xs font-semibold text-base-content/70">{indicator.shortName ?? indicator.name}</h3>
+                  {indicator.target && !axis.targetInRange && (
+                    <span className="shrink-0 text-[10px] text-base-content/35">
+                      เป้าหมาย {indicator.target.value}%
+                    </span>
+                  )}
+                </div>
+                {indicator.kind === "incident" ? (
+                  <div className="flex h-[180px] flex-col justify-center gap-2">
+                    <div className="grid grid-cols-12 gap-1.5">
+                      {data.map((d, i) => (
+                        <div
+                          key={i}
+                          title={`${d.month}: ${d.status === "pass" ? "PASS" : d.status === "fail" ? "FAIL" : "ไม่มีข้อมูล"}`}
+                          className={`flex h-9 items-center justify-center rounded-field ${
+                            d.status === "pass"
+                              ? "bg-success/15 text-success"
+                              : d.status === "fail"
+                                ? "bg-error/15 text-error"
+                                : "bg-base-200/50 text-base-content/25"
+                          }`}
+                        >
+                          {d.status === "pass" ? (
+                            <CheckCircle2 size={14} />
+                          ) : d.status === "fail" ? (
+                            <XCircle size={14} />
+                          ) : (
+                            <span className="text-[10px]">–</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-12 gap-1.5">
+                      {data.map((d, i) => (
+                        <span key={i} className="text-center text-[9px] text-base-content/35">{d.month}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={data}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        domain={axis.domain}
+                        ticks={axis.ticks}
+                        tick={{ fontSize: 11, fill: chartColors.axisTick }}
+                        axisLine={false}
+                        tickLine={false}
+                        unit="%"
+                      />
+                      <Tooltip
+                        contentStyle={chartColors.tooltip}
+                        formatter={(value, name) => [`${Number(value).toFixed(indicator.decimals ?? 1)}%`, name]}
+                      />
+                      {showPrev && (
+                        <Legend wrapperStyle={{ fontSize: 10, color: chartColors.axisTick }} />
+                      )}
+                      {indicator.target && axis.targetInRange && (
+                        <ReferenceLine
+                          y={indicator.target.value}
+                          stroke={chartColors.axisTick}
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.6}
+                          label={{
+                            value: `เป้าหมาย ${indicator.target.value}%`,
+                            position: "insideTopRight",
+                            fontSize: 10,
+                            fill: chartColors.axisTick,
+                          }}
+                        />
+                      )}
+                      {showPrev && (
+                        <Line
+                          type="monotone"
+                          dataKey="pctPrev"
+                          name={`ปีงบ ${(fiscalYear ?? 0) - 1}`}
+                          stroke={chartColors.axisTick}
+                          strokeWidth={1.75}
+                          strokeDasharray="5 5"
+                          dot={false}
+                          connectNulls
+                        />
+                      )}
+                      <Line
+                        type="monotone"
+                        dataKey="pct"
+                        name={showPrev ? `ปีงบ ${fiscalYear}` : (indicator.shortName ?? indicator.name)}
+                        stroke="var(--color-opd)"
+                        strokeWidth={2.25}
+                        dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </BentoCard>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-[11px] text-base-content/35">
+            เกณฑ์ประเมินของแต่ละตัวชี้วัดเป็นค่าเริ่มต้น — ปรับข้อความเกณฑ์จริงได้ที่หน้ากรอกข้อมูล (ตัวชี้วัดคุณภาพ)
+          </p>
+        </>
       )}
 
     </div>
