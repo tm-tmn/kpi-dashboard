@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { KeyRound, Loader2, AlertCircle, Droplet } from "lucide-react";
+import { KeyRound, Loader2, AlertCircle, Droplet, Eye, EyeOff } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -12,6 +12,21 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Press-and-hold reveal: held down anywhere (not just released on the
+  // button itself) is what releases it, so dragging off the button while
+  // still holding the mouse doesn't leave the password stuck visible.
+  useEffect(() => {
+    if (!showPassword) return;
+    const hide = () => setShowPassword(false);
+    window.addEventListener("mouseup", hide);
+    window.addEventListener("touchend", hide);
+    return () => {
+      window.removeEventListener("mouseup", hide);
+      window.removeEventListener("touchend", hide);
+    };
+  }, [showPassword]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,12 +75,28 @@ function LoginForm() {
           />
           <input
             autoFocus
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="input input-bordered w-full bg-base-200/60 pl-9"
+            className="input input-bordered w-full bg-base-200/60 pl-9 pr-9"
             placeholder="••••••••"
           />
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "กดค้างเพื่อดูรหัสผ่าน"}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setShowPassword(true);
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              setShowPassword(true);
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 select-none text-base-content/40 hover:text-base-content/70"
+          >
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
         </div>
 
         {error && (
