@@ -28,14 +28,31 @@ async function getClient() {
   return getSheetsClient();
 }
 
-/** Read every row from the "เครื่อง PM" tab, sorted by display order. */
+function isMissingSheetError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  // Google's own wording when a range names a tab that doesn't exist yet —
+  // e.g. "Unable to parse range: เครื่อง PM!A2:D". Treated the same as "no
+  // rows yet" (see DEFAULT_PM_MACHINES) rather than surfaced as an error,
+  // since this tab is optional and most hospitals won't have created it.
+  return message.includes("Unable to parse range");
+}
+
+/** Read every row from the "เครื่อง PM" tab, sorted by display order.
+ * Returns [] (not an error) if the tab doesn't exist yet — the caller falls
+ * back to DEFAULT_PM_MACHINES, same as an existing-but-empty tab. */
 export async function readAllPmMachines(): Promise<PmMachine[]> {
   const sheets = await getClient();
   const spreadsheetId = getSheetId();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${SHEET_NAME}!A${FIRST_DATA_ROW}:${LAST_COL}`,
-  });
+  let res;
+  try {
+    res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${SHEET_NAME}!A${FIRST_DATA_ROW}:${LAST_COL}`,
+    });
+  } catch (err) {
+    if (isMissingSheetError(err)) return [];
+    throw err;
+  }
   const rows = res.data.values ?? [];
   const machines: PmMachine[] = [];
   rows.forEach((row, idx) => {
@@ -64,10 +81,19 @@ export async function savePmMachines(
   const sheets = await getClient();
   const spreadsheetId = getSheetId();
 
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range: `${SHEET_NAME}!A${FIRST_DATA_ROW}:${LAST_COL}`,
-  });
+  try {
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `${SHEET_NAME}!A${FIRST_DATA_ROW}:${LAST_COL}`,
+    });
+  } catch (err) {
+    if (isMissingSheetError(err)) {
+      throw new Error(
+        `ยังไม่มีชีต "${SHEET_NAME}" ใน Google Sheet — สร้างแท็บนี้ก่อน (ดูวิธีใน SETUP.md ข้อ 8) แล้วค่อยบันทึกรายการเครื่องอีกครั้ง`
+      );
+    }
+    throw err;
+  }
 
   if (machines.length === 0) return;
 
