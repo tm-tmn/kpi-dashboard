@@ -125,7 +125,13 @@ export function fiscalMonthLabels() {
  * records, keyed by calendar ปี พ.ศ., with month-by-month totals and YoY %. */
 export function yearlyTrend(records: RecordRow[]) {
   const legacy = getLegacyYears();
-  const liveYears = Array.from(new Set(records.map((r) => r.year))).sort((a, b) => a - b);
+  // Oct..Sep fiscal years (the same convention every other summary in this
+  // app uses — see fiscalYearMonths), not raw calendar r.year groups: a
+  // fiscal year's Oct-Dec rows are stored under the earlier calendar year,
+  // so grouping by r.year directly used to split one fiscal year's total
+  // across two rows and silently drop the Oct-Dec portion wherever a
+  // legacy row already claimed the earlier calendar year number.
+  const liveFiscalYears = availableFiscalYears(records);
 
   const rows: { year: number; months: number[]; total: number }[] = legacy.map((y) => ({
     year: y.year,
@@ -133,10 +139,10 @@ export function yearlyTrend(records: RecordRow[]) {
     total: y.months.reduce((a, b) => a + b, 0),
   }));
 
-  for (const year of liveYears) {
-    if (rows.some((r) => r.year === year)) continue;
-    const months = Array.from({ length: 12 }, (_, i) => monthTotal(records, year, i + 1));
-    rows.push({ year, months, total: months.reduce((a, b) => a + b, 0) });
+  for (const fiscalYear of liveFiscalYears) {
+    if (rows.some((r) => r.year === fiscalYear)) continue;
+    const months = fiscalYearMonths(fiscalYear).map(({ year, month }) => monthTotal(records, year, month));
+    rows.push({ year: fiscalYear, months, total: months.reduce((a, b) => a + b, 0) });
   }
 
   rows.sort((a, b) => a.year - b.year);

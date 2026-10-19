@@ -11,7 +11,10 @@ import {
   CheckCircle2, XCircle, Wrench, Smile, MessageSquareWarning,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths } from "@/lib/constants";
+import {
+  SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths,
+  fiscalYearMonthsFilled,
+} from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
@@ -30,6 +33,7 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { LiveClock } from "@/components/LiveClock";
 import { ExecutiveSummary } from "@/components/ExecutiveSummary";
 import { TypeTatCorrelation } from "@/components/TypeTatCorrelation";
+import { linearForecastNextYear } from "@/lib/forecast";
 import { useTheme } from "@/lib/useTheme";
 
 // Ranked horizontal bar list — replaces the old per-point pie/donut for
@@ -230,6 +234,25 @@ export default function DashboardPage() {
   const trend = useMemo(() => yearlyTrend(records), [records]);
   const latestTrend = trend[trend.length - 1];
 
+  // Simple linear forecast for next fiscal year's total, fit only on
+  // fiscal years whose 12 months are all filled in — the live-computed
+  // years and legacy ones alike. A year still in progress would understate
+  // its eventual total and skew the slope downward if it were included.
+  const forecast = useMemo(() => {
+    const liveFiscalYears = new Set(availableFiscalYears(records));
+    const completeRows = trend.filter(
+      (t) => !liveFiscalYears.has(t.year) || fiscalYearMonthsFilled(records, t.year) >= 12
+    );
+    const next = linearForecastNextYear(completeRows.map((r) => ({ year: r.year, total: r.total })));
+    if (!next) return null;
+    // % change vs. the last fully-filled fiscal year — not necessarily
+    // trend's last row, which may itself be a still-in-progress year with
+    // a smaller year-to-date number that would make the comparison noise.
+    const baseline = completeRows[completeRows.length - 1]?.total ?? null;
+    const pctChange = baseline ? ((next.total - baseline) / baseline) * 100 : null;
+    return { ...next, pctChange };
+  }, [trend, records]);
+
   // The actual (ปี, เดือน) the month selector points at, in fiscal order —
   // null when the selector is on "ทั้งปี" (whole fiscal year).
   const selectedMonthPair = useMemo(() => {
@@ -257,7 +280,28 @@ export default function DashboardPage() {
   });
 
   const sparklineData = trend.slice(-6).map((t) => ({ year: t.year, total: t.total }));
-  const trendChartData = trend.map((t) => ({ year: String(t.year), total: t.total }));
+  // The forecast line is a second series so it can be dashed and colored
+  // differently from the actual-totals line: "forecastTotal" is null for
+  // every real year except the last one (so the dashed segment starts
+  // exactly where the solid line ends) plus the forecast year itself.
+  const trendChartData = useMemo(() => {
+    const rows: { year: string; total: number | null; forecastTotal: number | null }[] = trend.map((t) => ({
+      year: String(t.year),
+      total: t.total,
+      forecastTotal: null,
+    }));
+    if (forecast) {
+      const bridgeIdx = rows.findIndex((r) => r.year === String(forecast.year - 1));
+      if (bridgeIdx >= 0) rows[bridgeIdx].forecastTotal = rows[bridgeIdx].total;
+      const existingIdx = rows.findIndex((r) => r.year === String(forecast.year));
+      if (existingIdx >= 0) {
+        rows[existingIdx].forecastTotal = forecast.total;
+      } else {
+        rows.push({ year: String(forecast.year), total: null, forecastTotal: forecast.total });
+      }
+    }
+    return rows;
+  }, [trend, forecast]);
 
   const tatYears = useMemo(() => availableTatYears(tatRecords), [tatRecords]);
   const tatMonths = tatMonthLabels();
@@ -599,26 +643,54 @@ export default function DashboardPage() {
 
       {/* Yearly trend */}
       <BentoCard i={9} className="!p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <span className="icon-badge flex h-7 w-7 items-center justify-center rounded-field bg-primary/15 text-primary">
-            <CalendarClock size={14} strokeWidth={2.2} />
-          </span>
-          <h2 className="text-sm font-semibold text-base-content">แนวโน้มยอดผู้รับบริการรายปี</h2>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="icon-badge flex h-7 w-7 items-center justify-center rounded-field bg-primary/15 text-primary">
+              <CalendarClock size={14} strokeWidth={2.2} />
+            </span>
+            <h2 className="text-sm font-semibold text-base-content">แนวโน้มยอดผู้รับบริการรายปี</h2>
+          </div>
+          {forecast && (
+            <span className="flex items-center gap-1.5 rounded-field bg-info/15 px-2.5 py-1 text-xs font-medium text-info">
+              <TrendingUp size={12} />
+              พยากรณ์ปีงบ {forecast.year}: {forecast.total.toLocaleString()} คน
+            </span>
+          )}
         </div>
         <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={trendChartData}>
+          <LineChart data={trendChartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
             <XAxis dataKey="year" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={chartColors.tooltip} />
+            <Tooltip
+              contentStyle={chartColors.tooltip}
+              formatter={(value, name) => [
+                value == null ? "-" : `${Number(value).toLocaleString()} คน`,
+                name === "forecastTotal" ? "พยากรณ์" : "ยอดจริง",
+              ]}
+            />
+            {forecast && <Legend wrapperStyle={{ fontSize: 11, color: chartColors.axisTick }} />}
             <Line
               type="monotone"
               dataKey="total"
+              name="ยอดจริง"
               stroke="var(--color-opd)"
               strokeWidth={2.5}
               dot={{ r: 3, fill: "var(--color-opd)", strokeWidth: 0 }}
               activeDot={{ r: 5 }}
             />
+            {forecast && (
+              <Line
+                type="monotone"
+                dataKey="forecastTotal"
+                name="พยากรณ์"
+                stroke={chartColors.axisTick}
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={{ r: 3, fill: chartColors.axisTick, strokeWidth: 0 }}
+                connectNulls
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
         <div className="mt-4 overflow-x-auto">
@@ -646,11 +718,26 @@ export default function DashboardPage() {
                   </td>
                 </tr>
               ))}
+              {forecast && (
+                <tr className="border-b border-base-content/5 text-base-content/40 italic">
+                  <td className="py-1.5">
+                    {forecast.year}{" "}
+                    <span className="not-italic rounded-field bg-info/15 px-1.5 py-0.5 text-[10px] font-medium text-info">
+                      พยากรณ์
+                    </span>
+                  </td>
+                  <td className="stat-figure-num py-1.5 text-right">{forecast.total.toLocaleString()}</td>
+                  <td className="py-1.5 text-right">
+                    {forecast.pctChange == null ? "-" : `${forecast.pctChange.toFixed(1)}%`}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         <p className="mt-3 text-[11px] text-base-content/35">
           ปี 2563-2568: ยอดรวมจากไฟล์เดิม (ไม่แยกจุดบริการ) · ปี 2569 เป็นต้นไป: คำนวณจากข้อมูลที่กรอกจริง
+          {forecast && " · พยากรณ์: เส้นแนวโน้มเชิงเส้นอย่างง่ายจากปีงบที่มีข้อมูลครบ 12 เดือน ไม่ได้คำนึงถึงปัจจัยอื่น เช่น การเปลี่ยนแปลงกำลังคนหรือนโยบาย"}
         </p>
       </BentoCard>
 
