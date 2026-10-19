@@ -29,9 +29,6 @@ import { StatusBanner } from "@/components/StatusBanner";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { LiveClock } from "@/components/LiveClock";
 import { useTheme } from "@/lib/useTheme";
-import { Chart3DCard } from "@/components/Chart3DCard";
-import { use3DView } from "@/lib/use3DView";
-import { Box, RotateCcw } from "lucide-react";
 
 // Ranked horizontal bar list — replaces the old per-point pie/donut for
 // "share by ประเภทผู้รับบริการ". A pie's slice labels collide once there
@@ -156,8 +153,6 @@ function Skeleton() {
 
 export default function DashboardPage() {
   const { mode } = useTheme();
-  const view3d = use3DView();
-  const { enabled: view3D, toggle: toggle3D } = view3d;
   const isLight = mode === "light";
   // Recharts needs plain color strings (not CSS vars) for tooltip/axis/grid,
   // so the dark/light pair lives here instead of in globals.css.
@@ -484,30 +479,28 @@ export default function DashboardPage() {
               </h2>
               <span className="text-xs text-base-content/40">ปีงบ {fiscalYear}</span>
             </div>
-            <Chart3DCard {...view3d}>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={monthlyChartData} barCategoryGap={18} barSize={24}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={chartColors.tooltip} cursor={{ fill: chartColors.cursor }} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axisTick }} />
-                  {SERVICE_POINTS.map((p, pIdx) => (
-                    <Bar
-                      key={p}
-                      dataKey={p}
-                      stackId="a"
-                      fill={pointMeta(p).color}
-                      radius={pIdx === SERVICE_POINTS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                    >
-                      {monthlyChartData.map((_, i) => (
-                        <Cell key={i} fillOpacity={monthIndex === "all" || monthIndex === i ? 1 : 0.25} />
-                      ))}
-                    </Bar>
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </Chart3DCard>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={monthlyChartData} barCategoryGap={18} barSize={24}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={chartColors.tooltip} cursor={{ fill: chartColors.cursor }} />
+                <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axisTick }} />
+                {SERVICE_POINTS.map((p, pIdx) => (
+                  <Bar
+                    key={p}
+                    dataKey={p}
+                    stackId="a"
+                    fill={pointMeta(p).color}
+                    radius={pIdx === SERVICE_POINTS.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  >
+                    {monthlyChartData.map((_, i) => (
+                      <Cell key={i} fillOpacity={monthIndex === "all" || monthIndex === i ? 1 : 0.25} />
+                    ))}
+                  </Bar>
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
           </BentoCard>
 
           {/* Share by ประเภทผู้รับบริการ, per จุดบริการ — ranked bar list */}
@@ -543,24 +536,22 @@ export default function DashboardPage() {
           </span>
           <h2 className="text-sm font-semibold text-base-content">แนวโน้มยอดผู้รับบริการรายปี</h2>
         </div>
-        <Chart3DCard {...view3d}>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trendChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
-              <XAxis dataKey="year" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={chartColors.tooltip} />
-              <Line
-                type="monotone"
-                dataKey="total"
-                stroke="var(--color-opd)"
-                strokeWidth={2.5}
-                dot={{ r: 3, fill: "var(--color-opd)", strokeWidth: 0 }}
-                activeDot={{ r: 5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Chart3DCard>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={trendChartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+            <XAxis dataKey="year" tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 12, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={chartColors.tooltip} />
+            <Line
+              type="monotone"
+              dataKey="total"
+              stroke="var(--color-opd)"
+              strokeWidth={2.5}
+              dot={{ r: 3, fill: "var(--color-opd)", strokeWidth: 0 }}
+              activeDot={{ r: 5 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -628,32 +619,30 @@ export default function DashboardPage() {
                     <span style={{ color: meta.color }}>{meta.short}</span>
                     <span className="text-xs font-normal text-base-content/40">{point}</span>
                   </h3>
-                  <Chart3DCard {...view3d}>
-                    <ResponsiveContainer width="100%" height={240}>
-                      <LineChart data={data}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} unit="น." />
-                        <Tooltip
-                          contentStyle={chartColors.tooltip}
-                          formatter={(value, name) => [`${Number(value).toFixed(1)} นาที`, name]}
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={data}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} unit="น." />
+                      <Tooltip
+                        contentStyle={chartColors.tooltip}
+                        formatter={(value, name) => [`${Number(value).toFixed(1)} นาที`, name]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 10, color: chartColors.axisTick }} />
+                      {Object.entries(TAT_STAGE_META).map(([stage, sMeta]) => (
+                        <Line
+                          key={stage}
+                          type="monotone"
+                          dataKey={stage}
+                          name={sMeta.short}
+                          stroke={sMeta.color}
+                          strokeWidth={sMeta.total ? 2.75 : 1.75}
+                          dot={{ r: 3, strokeWidth: 0, fill: sMeta.color }}
+                          connectNulls
                         />
-                        <Legend wrapperStyle={{ fontSize: 10, color: chartColors.axisTick }} />
-                        {Object.entries(TAT_STAGE_META).map(([stage, sMeta]) => (
-                          <Line
-                            key={stage}
-                            type="monotone"
-                            dataKey={stage}
-                            name={sMeta.short}
-                            stroke={sMeta.color}
-                            strokeWidth={sMeta.total ? 2.75 : 1.75}
-                            dot={{ r: 3, strokeWidth: 0, fill: sMeta.color }}
-                            connectNulls
-                          />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </Chart3DCard>
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
                 </BentoCard>
               );
             })}
@@ -802,49 +791,47 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ) : (
-                  <Chart3DCard {...view3d}>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <LineChart data={data}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
-                        <YAxis
-                          domain={axis.domain}
-                          ticks={axis.ticks}
-                          tick={{ fontSize: 11, fill: chartColors.axisTick }}
-                          axisLine={false}
-                          tickLine={false}
-                          unit="%"
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={data}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        domain={axis.domain}
+                        ticks={axis.ticks}
+                        tick={{ fontSize: 11, fill: chartColors.axisTick }}
+                        axisLine={false}
+                        tickLine={false}
+                        unit="%"
+                      />
+                      <Tooltip
+                        contentStyle={chartColors.tooltip}
+                        formatter={(value) => [`${Number(value).toFixed(indicator.decimals ?? 1)}%`, indicator.shortName ?? indicator.name]}
+                      />
+                      {indicator.target && axis.targetInRange && (
+                        <ReferenceLine
+                          y={indicator.target.value}
+                          stroke={chartColors.axisTick}
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.6}
+                          label={{
+                            value: `เป้าหมาย ${indicator.target.value}%`,
+                            position: "insideTopRight",
+                            fontSize: 10,
+                            fill: chartColors.axisTick,
+                          }}
                         />
-                        <Tooltip
-                          contentStyle={chartColors.tooltip}
-                          formatter={(value) => [`${Number(value).toFixed(indicator.decimals ?? 1)}%`, indicator.shortName ?? indicator.name]}
-                        />
-                        {indicator.target && axis.targetInRange && (
-                          <ReferenceLine
-                            y={indicator.target.value}
-                            stroke={chartColors.axisTick}
-                            strokeDasharray="4 4"
-                            strokeOpacity={0.6}
-                            label={{
-                              value: `เป้าหมาย ${indicator.target.value}%`,
-                              position: "insideTopRight",
-                              fontSize: 10,
-                              fill: chartColors.axisTick,
-                            }}
-                          />
-                        )}
-                        <Line
-                          type="monotone"
-                          dataKey="pct"
-                          name={indicator.shortName ?? indicator.name}
-                          stroke="var(--color-opd)"
-                          strokeWidth={2.25}
-                          dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
-                          connectNulls
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </Chart3DCard>
+                      )}
+                      <Line
+                        type="monotone"
+                        dataKey="pct"
+                        name={indicator.shortName ?? indicator.name}
+                        stroke="var(--color-opd)"
+                        strokeWidth={2.25}
+                        dot={{ r: 3, strokeWidth: 0, fill: "var(--color-opd)" }}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 )}
               </BentoCard>
               );
@@ -887,17 +874,6 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={toggle3D}
-            title={view3D ? "ปิดมุมมอง 3D ของกราฟ" : "เปิดมุมมอง 3D ของกราฟ (ทดลอง — ลากกราฟเพื่อหมุนมุมมอง)"}
-            aria-label="สลับมุมมอง 3D ของกราฟ"
-            aria-pressed={view3D}
-            className={`icon-badge btn btn-circle btn-ghost glass-panel border-0 ${
-              view3D ? "text-primary" : "text-base-content/60 hover:text-primary"
-            }`}
-          >
-            <Box size={18} strokeWidth={2.2} />
-          </button>
           <ThemeSwitcher />
           <Link
             href="/entry"
@@ -911,25 +887,6 @@ export default function DashboardPage() {
       </div>
 
       {content}
-
-      {view3D && (
-        <div className="view3d-controls glass-panel">
-          <span className="view3d-controls-label">หมุนมุมมองกราฟ</span>
-          <input
-            type="range"
-            min={-28}
-            max={28}
-            value={Math.round(view3d.rotY)}
-            onChange={(e) => view3d.setRotY(Number(e.target.value))}
-            className="range range-xs"
-            aria-label="หมุนมุมมอง 3D ของกราฟ"
-          />
-          <button onClick={view3d.reset} className="btn btn-ghost btn-xs gap-1 text-base-content/60" title="รีเซ็ตมุมมอง">
-            <RotateCcw size={12} />
-            รีเซ็ต
-          </button>
-        </div>
-      )}
     </div>
   );
 }

@@ -336,52 +336,6 @@ body {
   animation-delay: calc(min(var(--bento-i, 0), 8) * 70ms);
 }
 
-/* ---------- Experimental 3D chart view — scoped to individual charts only
-   (see lib/use3DView.ts / components/Chart3DCard.tsx). Everything that
-   isn't a chart (KPI number tiles, tables, entry forms) is untouched. ---------- */
-.chart3d-stage {
-  perspective: 2200px;
-}
-.chart3d-plane {
-  transform-style: preserve-3d;
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), filter 0.25s ease;
-  cursor: grab;
-  border-radius: inherit;
-  /* A grounded "floor shadow" so the tilt reads as a plane lifted off the
-     page, not just a flat chart that moved. */
-  filter: drop-shadow(0 22px 18px rgba(0, 0, 0, 0.35));
-}
-.chart3d-plane.is-dragging {
-  transition: filter 0.25s ease;
-  cursor: grabbing;
-}
-.view3d-controls {
-  position: fixed;
-  bottom: 1rem;
-  right: 1rem;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.85rem;
-  border-radius: 999px;
-}
-.view3d-controls-label {
-  font-size: 0.65rem;
-  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
-  white-space: nowrap;
-}
-.view3d-controls input[type="range"] {
-  width: 100px;
-}
-@media (max-width: 640px) {
-  .view3d-controls {
-    left: 1rem;
-    right: 1rem;
-    justify-content: center;
-  }
-}
-
 .card-hover {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
 }
