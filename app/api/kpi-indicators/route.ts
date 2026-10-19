@@ -50,12 +50,36 @@ export async function POST(req: NextRequest) {
       const order = Number.isFinite(Number(r.order)) ? Number(r.order) : 0;
 
       if (BASE_IDS.has(id)) {
-        // An override row for one of the 6 original indicators — only
-        // active/order are stored; its name/criteria/fields/target stay
-        // the hardcoded ones in lib/constants.ts.
+        // An override row for one of the 6 original indicators — active/
+        // order plus optional name/shortName/criteria/target/decimals
+        // overrides (blank = keep the hardcoded value in lib/constants.ts).
+        // Field keys and kind are never stored, so renaming is always safe.
+        let bTarget: number | null = null;
+        let bDirection: "max" | "min" | "" = "";
+        if (r.targetValue != null && r.targetValue !== "") {
+          const v = Number(r.targetValue);
+          if (!Number.isFinite(v) || v < 0 || v > 100) {
+            return NextResponse.json({ error: `ค่าเป้าหมายต้องเป็นตัวเลข 0-100 สำหรับ "${id}"` }, { status: 400 });
+          }
+          bTarget = v;
+          bDirection = r.targetDirection === "min" ? "min" : "max";
+        }
+        let bDecimals: number | null = null;
+        if (r.decimals != null && r.decimals !== "") {
+          const d = Number(r.decimals);
+          if (!Number.isFinite(d) || d < 0 || d > 4) {
+            return NextResponse.json({ error: `จำนวนทศนิยมไม่ถูกต้องสำหรับ "${id}"` }, { status: 400 });
+          }
+          bDecimals = d;
+        }
         cleaned.push({
-          id, name: "", shortName: "", criteria: "", kind: "",
-          field1Label: "", field2Label: "", targetValue: null, targetDirection: "", decimals: null,
+          id,
+          name: String(r.name ?? "").trim(),
+          shortName: String(r.shortName ?? "").trim(),
+          criteria: String(r.criteria ?? "").trim(),
+          kind: "",
+          field1Label: "", field2Label: "",
+          targetValue: bTarget, targetDirection: bDirection, decimals: bDecimals,
           order, active,
         });
         continue;

@@ -36,7 +36,10 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="จำนวนผู้รับบริการ_${fiscalYear}.xlsx"`,
+        // HTTP header values must be Latin-1: a raw Thai filename makes
+        // Response throw ("Cannot convert argument to a ByteString") and the
+        // whole export 500s. ASCII fallback + RFC 5987 UTF-8 filename*.
+        "Content-Disposition": `attachment; filename="attendance_${fiscalYear}.xlsx"; filename*=UTF-8''${encodeURIComponent(`จำนวนผู้รับบริการ_${fiscalYear}.xlsx`)}`,
       },
     });
   } catch (err: unknown) {

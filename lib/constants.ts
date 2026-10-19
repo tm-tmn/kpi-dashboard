@@ -298,6 +298,26 @@ type KpiIndicatorConfigLike = {
   active: boolean;
 } & Omit<CustomKpiIndicatorConfig, "id" | "kind">;
 
+/** Applies an override row's editable text/target settings onto one of the
+ * 6 original indicators. A blank field means "keep the hardcoded value", so
+ * an override row that only toggles `active` leaves everything else alone.
+ * Field keys/kind are never touched — renaming is always safe for the
+ * historical data keyed by them. */
+function applyBaseOverride(indicator: KpiIndicator, cfg: KpiIndicatorConfigLike): KpiIndicator {
+  const target: KpiTarget | undefined =
+    cfg.targetValue != null && (cfg.targetDirection === "max" || cfg.targetDirection === "min")
+      ? { value: cfg.targetValue, direction: cfg.targetDirection }
+      : indicator.target;
+  return {
+    ...indicator,
+    name: cfg.name || indicator.name,
+    shortName: cfg.shortName || indicator.shortName,
+    criteria: cfg.criteria || indicator.criteria,
+    decimals: cfg.decimals ?? indicator.decimals,
+    target,
+  };
+}
+
 /** Applies the admin-managed "ตัวชี้วัดคุณภาพ (ตั้งค่า)" config on top of the
  * indicator list (already PM-group-merged via withPmGroups): any of the 6
  * original indicators gets its active/order from a matching config row when
@@ -324,7 +344,7 @@ export function withKpiIndicatorConfig(
   base.forEach((indicator, i) => {
     const cfg = cfgById.get(indicator.id);
     if (!opts.includeInactive && cfg && !cfg.active) return;
-    entries.push({ indicator, order: cfg ? cfg.order : i });
+    entries.push({ indicator: cfg ? applyBaseOverride(indicator, cfg) : indicator, order: cfg ? cfg.order : i });
   });
 
   configRows

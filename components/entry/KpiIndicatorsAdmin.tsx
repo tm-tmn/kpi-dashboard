@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ListChecks, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { Loader2, ListChecks, Pencil, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { KPI_INDICATORS } from "@/lib/constants";
 import type { KpiIndicatorConfigRow } from "@/lib/sheets-kpi-indicators";
 import { StatusBanner } from "@/components/StatusBanner";
@@ -30,6 +30,11 @@ type DraftItem = {
   active: boolean;
   isNew: boolean;
   isCustom: boolean;
+  /** UI only: whether a built-in indicator's edit fields are expanded. */
+  editing?: boolean;
+  /** Built-in indicators only: the kind (never editable), used to hide
+   * target/decimals for the incident kind where they don't apply. */
+  baseKind?: string;
 };
 
 // Slug a Thai/English name into a safe a-z0-9_ id for a brand-new custom
@@ -52,20 +57,27 @@ function buildInitialList(config: KpiIndicatorConfigRow[]): DraftItem[] {
 
   const ordered: { item: DraftItem; order: number }[] = KPI_INDICATORS.map((ind, i) => {
     const cfg = cfgById.get(ind.id);
+    // Effective values = admin override if set, else the hardcoded default.
+    const effTarget =
+      cfg && cfg.targetValue != null && cfg.targetDirection !== ""
+        ? { value: cfg.targetValue, direction: cfg.targetDirection as "max" | "min" }
+        : ind.target;
     const item: DraftItem = {
       id: ind.id,
-      name: ind.name,
-      shortName: ind.shortName ?? ind.name,
-      criteria: ind.criteria,
+      name: cfg?.name || ind.name,
+      shortName: cfg?.shortName || ind.shortName || ind.name,
+      criteria: cfg?.criteria || ind.criteria,
       kind: "",
       field1Label: "",
       field2Label: "",
-      targetValue: "",
-      targetDirection: "max",
-      decimals: "",
+      targetValue: effTarget ? String(effTarget.value) : "",
+      targetDirection: effTarget?.direction ?? "max",
+      decimals: cfg?.decimals != null ? String(cfg.decimals) : ind.decimals != null ? String(ind.decimals) : "",
       active: cfg ? cfg.active : true,
       isNew: false,
       isCustom: false,
+      editing: false,
+      baseKind: ind.kind,
     };
     return { item, order: cfg ? cfg.order : i };
   });
@@ -170,7 +182,20 @@ export function KpiIndicatorsAdmin({
   async function handleSave() {
     setError(null);
     for (const it of items) {
-      if (!it.isCustom) continue;
+      if (!it.isCustom) {
+        if (!it.name.trim() || !it.criteria.trim()) {
+          setError(`ชื่อและเกณฑ์ประเมินของ "${it.shortName || it.id}" ต้องไม่ว่าง`);
+          return;
+        }
+        if (it.targetValue !== "") {
+          const v = Number(it.targetValue);
+          if (!Number.isFinite(v) || v < 0 || v > 100) {
+            setError(`ค่าเป้าหมายต้องเป็นตัวเลข 0-100 สำหรับ "${it.shortName}"`);
+            return;
+          }
+        }
+        continue;
+      }
       if (!it.name.trim()) {
         setError("กรุณากรอกชื่อตัวชี้วัดให้ครบทุกข้อที่เพิ่มเอง");
         return;
@@ -211,20 +236,47 @@ export function KpiIndicatorsAdmin({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rows: items.map((it, i) => ({
-            id: it.id,
-            name: it.isCustom ? it.name.trim() : "",
-            shortName: it.isCustom ? it.shortName.trim() : "",
-            criteria: it.isCustom ? it.criteria.trim() : "",
-            kind: it.isCustom ? it.kind : "",
-            field1Label: it.isCustom ? it.field1Label.trim() : "",
-            field2Label: it.isCustom ? it.field2Label.trim() : "",
-            targetValue: it.isCustom && it.targetValue !== "" ? Number(it.targetValue) : null,
-            targetDirection: it.isCustom && it.targetValue !== "" ? it.targetDirection : "",
-            decimals: it.isCustom && it.decimals !== "" ? Number(it.decimals) : null,
-            order: i,
-            active: it.active,
-          })),
+          rows: items.map((it, i) => {
+            if (it.isCustom) {
+              return {
+                id: it.id,
+                name: it.name.trim(),
+                shortName: it.shortName.trim(),
+                criteria: it.criteria.trim(),
+                kind: it.kind,
+                field1Label: it.field1Label.trim(),
+                field2Label: it.field2Label.trim(),
+                targetValue: it.targetValue !== "" ? Number(it.targetValue) : null,
+                targetDirection: it.targetValue !== "" ? it.targetDirection : "",
+                decimals: it.decimals !== "" ? Number(it.decimals) : null,
+                order: i,
+                active: it.active,
+              };
+            }
+            // Built-in: store only what differs from the hardcoded default,
+            // so untouched fields keep following lib/constants.ts.
+            const base = KPI_INDICATORS.find((k) => k.id === it.id)!;
+            const defShort = base.shortName ?? base.name;
+            const defTarget = base.target;
+            const tv = it.targetValue !== "" ? Number(it.targetValue) : null;
+            const targetChanged =
+              tv != null && (!defTarget || defTarget.value !== tv || defTarget.direction !== it.targetDirection);
+            const dec = it.decimals !== "" ? Number(it.decimals) : null;
+            return {
+              id: it.id,
+              name: it.name.trim() !== base.name ? it.name.trim() : "",
+              shortName: it.shortName.trim() !== defShort ? it.shortName.trim() : "",
+              criteria: it.criteria.trim() !== base.criteria ? it.criteria.trim() : "",
+              kind: "",
+              field1Label: "",
+              field2Label: "",
+              targetValue: targetChanged ? tv : null,
+              targetDirection: targetChanged ? it.targetDirection : "",
+              decimals: dec != null && dec !== base.decimals ? dec : null,
+              order: i,
+              active: it.active,
+            };
+          }),
         }),
       });
       const data = await res.json();
@@ -382,6 +434,72 @@ export function KpiIndicatorsAdmin({
                           <span className="ml-auto font-mono text-base-content/30">รหัส: {it.id}</span>
                         </div>
                       </>
+                    ) : it.editing ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          placeholder="ชื่อตัวชี้วัด (เต็ม)"
+                          className="input input-xs input-bordered w-full bg-base-200/60"
+                          value={it.name}
+                          onChange={(e) => updateItem(i, { name: e.target.value })}
+                        />
+                        <input
+                          type="text"
+                          placeholder="ชื่อย่อ (แสดงในการ์ด/กราฟ)"
+                          className="input input-xs input-bordered w-full bg-base-200/60"
+                          value={it.shortName}
+                          onChange={(e) => updateItem(i, { shortName: e.target.value })}
+                        />
+                        <input
+                          type="text"
+                          placeholder="เกณฑ์ประเมิน"
+                          className="input input-xs input-bordered w-full bg-base-200/60"
+                          value={it.criteria}
+                          onChange={(e) => updateItem(i, { criteria: e.target.value })}
+                        />
+                        {it.baseKind !== "incident" && (
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-base-content/40">
+                            <span>เป้าหมาย:</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="ไม่มี"
+                              className="input input-xs input-bordered w-20 bg-base-200/60"
+                              value={it.targetValue}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === "" || /^\d*\.?\d*$/.test(v)) updateItem(i, { targetValue: v });
+                              }}
+                            />
+                            <span>%</span>
+                            {it.targetValue !== "" && (
+                              <select
+                                className="select select-xs select-bordered bg-base-200/60"
+                                value={it.targetDirection}
+                                onChange={(e) => updateItem(i, { targetDirection: e.target.value as "max" | "min" })}
+                              >
+                                <option value="max">ต้องได้อย่างน้อยเท่านี้ (max)</option>
+                                <option value="min">ต้องไม่เกินเท่านี้ (min)</option>
+                              </select>
+                            )}
+                            <span className="ml-2">ทศนิยม:</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="1"
+                              className="input input-xs input-bordered w-12 bg-base-200/60"
+                              value={it.decimals}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === "" || /^\d*$/.test(v)) updateItem(i, { decimals: v });
+                              }}
+                            />
+                          </div>
+                        )}
+                        <p className="text-[10px] text-base-content/30">
+                          ชื่อช่องกรอกข้อมูลภายในของตัวชี้วัดเดิมแก้ไขไม่ได้จากหน้านี้ — การแก้ชื่อ/เกณฑ์/เป้าหมายไม่กระทบข้อมูลย้อนหลัง
+                        </p>
+                      </div>
                     ) : (
                       <div>
                         <div className="text-xs font-semibold text-base-content/80">{it.shortName}</div>
@@ -400,6 +518,17 @@ export function KpiIndicatorsAdmin({
                       <Trash2 size={13} />
                     </button>
                   ) : (
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                    {!it.isCustom && (
+                      <button
+                        onClick={() => updateItem(i, { editing: !it.editing })}
+                        className="btn btn-ghost btn-xs gap-1 text-base-content/50"
+                        title="แก้ไขชื่อ/เกณฑ์/เป้าหมาย"
+                      >
+                        <Pencil size={12} />
+                        {it.editing ? "ย่อ" : "แก้ไข"}
+                      </button>
+                    )}
                     <button
                       onClick={() => updateItem(i, { active: !it.active })}
                       className={`btn btn-xs shrink-0 gap-1 ${it.active ? "btn-ghost text-base-content/50" : "btn-ghost text-success"}`}
@@ -408,6 +537,7 @@ export function KpiIndicatorsAdmin({
                       {it.active ? <Trash2 size={13} /> : <RotateCcw size={13} />}
                       {it.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
                     </button>
+                    </div>
                   )}
                 </div>
               </div>
