@@ -73,3 +73,26 @@ export function latestOverallTatByPoint(
     return { point, minutes: rows[0]?.minutes ?? null, month: rows[0]?.month ?? null };
   });
 }
+
+/** Every stage's minutes for every จุดบริการ in one single (year, month) —
+ * the side-by-side comparison, as opposed to tatSeriesByPoint's one-point-
+ * at-a-time trend over a year. null where that point/stage wasn't entered
+ * for the month. */
+export function tatByPointForMonth(
+  records: TatRecordRow[],
+  year: number,
+  month: number,
+  points: readonly string[],
+  stages: readonly string[]
+) {
+  return points.map((point) => {
+    const row: { point: string } & Record<string, number | null | string> = { point };
+    for (const stage of stages) {
+      const rec = records.find(
+        (r) => r.year === year && r.month === month && r.point === point && r.stage === stage
+      );
+      row[stage] = rec ? rec.minutes : null;
+    }
+    return row;
+  });
+}

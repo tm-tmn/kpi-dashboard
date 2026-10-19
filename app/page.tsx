@@ -11,14 +11,14 @@ import {
   CheckCircle2, XCircle, Wrench, Smile, MessageSquareWarning,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { SERVICE_POINTS, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths } from "@/lib/constants";
+import { SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, KPI_INDICATORS, MONTH_NAMES_TH, fiscalYearMonths } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
   fiscalMonthLabels, yearlyTrend, monthByPoint, monthByType,
 } from "@/lib/aggregate";
 import {
-  TatRecordRow, availableTatYears, tatSeriesByPoint, tatMonthLabels,
+  TatRecordRow, availableTatYears, tatSeriesByPoint, tatMonthLabels, tatByPointForMonth,
 } from "@/lib/aggregate-tat";
 import {
   KpiRecordRow, kpiMonthResult, kpiYearTrend, kpiStatus,
@@ -272,6 +272,30 @@ export default function DashboardPage() {
       return { point, data };
     });
   }, [tatRecords, tatYear, tatMonths]);
+
+  // Side-by-side point comparison: the latest month (within the selected
+  // TAT year) that has any data at all, across every จุดบริการ at once —
+  // the "all 4 points in one view" complement to the per-point trend
+  // charts above, which only show one point's history at a time.
+  const tatCompare = useMemo(() => {
+    if (!tatYear) return { month: null as number | null, rows: [] as ReturnType<typeof tatByPointForMonth> };
+    const monthsWithData = tatRecords.filter((r) => r.year === tatYear).map((r) => r.month);
+    if (!monthsWithData.length) return { month: null, rows: [] };
+    const month = Math.max(...monthsWithData);
+    return { month, rows: tatByPointForMonth(tatRecords, tatYear, month, SERVICE_POINTS, TAT_STAGES) };
+  }, [tatRecords, tatYear]);
+
+  // Fastest/slowest by the "รวมทั้งหมด" stage, to call out at a glance —
+  // only meaningful once at least 2 points have that stage filled in.
+  const tatCompareRanked = useMemo(() => {
+    const totalStage = TAT_STAGES[3];
+    const withTotal = tatCompare.rows
+      .map((r) => ({ point: r.point as string, total: r[totalStage] as number | null }))
+      .filter((r): r is { point: string; total: number } => r.total != null);
+    if (withTotal.length < 2) return null;
+    const sorted = [...withTotal].sort((a, b) => a.total - b.total);
+    return { fastest: sorted[0], slowest: sorted[sorted.length - 1] };
+  }, [tatCompare]);
 
   // Latest (year, month) that has any KPI row, so the score tiles show the
   // most recently filled-in month rather than requiring another selector.
@@ -654,6 +678,66 @@ export default function DashboardPage() {
             </select>
           </div>
 
+          {/* Side-by-side point comparison — all 4 จุดบริการ in one chart,
+              instead of needing to look at one point's history at a time
+              further down. */}
+          {tatCompare.month && (
+            <BentoCard i={10} className="mb-4 !p-5">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-base-content">
+                  เปรียบเทียบ 4 จุดบริการ
+                </h3>
+                <span className="text-xs text-base-content/40">
+                  {tatMonths[tatCompare.month - 1]} {tatYear}
+                </span>
+              </div>
+              {tatCompareRanked && (
+                <div className="mb-3 flex flex-wrap gap-2 text-xs">
+                  <span className="flex items-center gap-1.5 rounded-field bg-success/15 px-2 py-1 text-success">
+                    <Timer size={11} /> เร็วสุด {pointMeta(tatCompareRanked.fastest.point).short} ·{" "}
+                    {tatCompareRanked.fastest.total.toFixed(1)} น.
+                  </span>
+                  <span className="flex items-center gap-1.5 rounded-field bg-error/15 px-2 py-1 text-error">
+                    <Timer size={11} /> ช้าสุด {pointMeta(tatCompareRanked.slowest.point).short} ·{" "}
+                    {tatCompareRanked.slowest.total.toFixed(1)} น.
+                  </span>
+                </div>
+              )}
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={tatCompare.rows} barCategoryGap={28} barGap={3}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                  <XAxis
+                    dataKey="point"
+                    tickFormatter={(point: string) => pointMeta(point).short}
+                    tick={{ fontSize: 11, fill: chartColors.axisTick }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: chartColors.axisTick }} axisLine={false} tickLine={false} unit="น." />
+                  <Tooltip
+                    contentStyle={chartColors.tooltip}
+                    formatter={(value, name) => [value == null ? "ไม่มีข้อมูล" : `${Number(value).toFixed(1)} นาที`, name]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10, color: chartColors.axisTick }} />
+                  {TAT_STAGES.map((stage) => {
+                    const sMeta = TAT_STAGE_META[stage];
+                    return (
+                      <Bar
+                        key={stage}
+                        dataKey={stage}
+                        name={sMeta.short}
+                        fill={sMeta.color}
+                        fillOpacity={sMeta.total ? 1 : 0.65}
+                        radius={[3, 3, 0, 0]}
+                      />
+                    );
+                  })}
+                </BarChart>
+              </ResponsiveContainer>
+            </BentoCard>
+          )}
+
+          <div className="mb-3 text-xs font-medium text-base-content/40">รายละเอียดแนวโน้มแต่ละจุดบริการ</div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {tatChartDataByPoint.map(({ point, data }, idx) => {
               const meta = pointMeta(point);
