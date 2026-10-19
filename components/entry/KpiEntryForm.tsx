@@ -1,19 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { withPmGroups, MONTH_NAMES_TH, fiscalYearOf, fiscalYearMonthsFilled } from "@/lib/constants";
+import { withPmGroups, withKpiIndicatorConfig, MONTH_NAMES_TH, fiscalYearOf, fiscalYearMonthsFilled } from "@/lib/constants";
 import { monthTotal, RecordRow } from "@/lib/aggregate";
 import { kpiMonthResult, KpiRecordRow } from "@/lib/aggregate-kpi";
 import {
-  Loader2, Save, ShieldCheck, Info, XCircle, Wrench, Timer, Smile, MessageSquareWarning, Settings2,
+  Loader2, Save, ShieldCheck, Info, XCircle, Wrench, Timer, Smile, MessageSquareWarning, Settings2, ListChecks,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { PmMachine } from "@/lib/sheets-pm-machines";
+import type { KpiIndicatorConfigRow } from "@/lib/sheets-kpi-indicators";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { KpiYearTable } from "@/components/entry/KpiYearTable";
 import { CompletenessBadge } from "@/components/entry/CompletenessBadge";
 import { PmMachinesAdmin } from "@/components/entry/PmMachinesAdmin";
+import { KpiIndicatorsAdmin } from "@/components/entry/KpiIndicatorsAdmin";
 
 const now = new Date();
 const CURRENT_BE_YEAR = now.getFullYear() + 543;
@@ -51,6 +53,8 @@ export function KpiEntryForm() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [pmMachines, setPmMachines] = useState<PmMachine[]>([]);
   const [pmAdminOpen, setPmAdminOpen] = useState(false);
+  const [kpiIndicatorConfig, setKpiIndicatorConfig] = useState<KpiIndicatorConfigRow[]>([]);
+  const [indicatorAdminOpen, setIndicatorAdminOpen] = useState(false);
 
   function loadPmMachines() {
     fetch("/api/pm-machines")
@@ -58,6 +62,16 @@ export function KpiEntryForm() {
       .then((data: { machines?: PmMachine[]; error?: string }) => {
         if (data.error) return;
         setPmMachines(data.machines ?? []);
+      })
+      .catch(() => {});
+  }
+
+  function loadKpiIndicatorConfig() {
+    fetch("/api/kpi-indicators")
+      .then((r) => r.json())
+      .then((data: { config?: KpiIndicatorConfigRow[]; error?: string }) => {
+        if (data.error) return;
+        setKpiIndicatorConfig(data.config ?? []);
       })
       .catch(() => {});
   }
@@ -78,14 +92,15 @@ export function KpiEntryForm() {
       .catch((e) => setStatus({ type: "err", text: String(e) }))
       .finally(() => setLoading(false));
     loadPmMachines();
+    loadKpiIndicatorConfig();
   }, []);
 
-  // Admin-managed PM machines, active ones only — see app/page.tsx for the
-  // same pattern on the dashboard side.
-  const KPI_INDICATORS = useMemo(
-    () => withPmGroups(pmMachines.filter((m) => m.active).map((m) => ({ key: m.key, label: m.label }))),
-    [pmMachines]
-  );
+  // Admin-managed PM machines + indicator list (add/deactivate), active
+  // ones only — see app/page.tsx for the same pattern on the dashboard side.
+  const KPI_INDICATORS = useMemo(() => {
+    const base = withPmGroups(pmMachines.filter((m) => m.active).map((m) => ({ key: m.key, label: m.label })));
+    return withKpiIndicatorConfig(base, kpiIndicatorConfig);
+  }, [pmMachines, kpiIndicatorConfig]);
 
   const attendanceTotal = useMemo(() => monthTotal(attendance, year, month), [attendance, year, month]);
   const selectedFiscalYear = fiscalYearOf(year, month);
@@ -245,6 +260,13 @@ export function KpiEntryForm() {
             </div>
             <CompletenessBadge filled={monthsFilled} />
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
+            <button
+              onClick={() => setIndicatorAdminOpen(true)}
+              className="btn btn-ghost btn-xs ml-auto gap-1 text-base-content/50"
+            >
+              <ListChecks size={13} />
+              จัดการตัวชี้วัด
+            </button>
           </div>
         </BentoCard>
 
@@ -457,7 +479,7 @@ export function KpiEntryForm() {
         </div>
 
         <div className="glass-panel sticky bottom-4 flex items-center justify-between rounded-box p-4">
-          <div className="text-sm text-base-content/60">กรอกครบ 6 ตัวชี้วัดแล้วกดบันทึก</div>
+          <div className="text-sm text-base-content/60">กรอกครบ {KPI_INDICATORS.length} ตัวชี้วัดแล้วกดบันทึก</div>
           <button
             onClick={handleSubmit}
             disabled={saving || loading}
@@ -469,12 +491,17 @@ export function KpiEntryForm() {
         </div>
       </div>
 
-      <KpiYearTable records={records} attendance={attendance} />
+      <KpiYearTable records={records} attendance={attendance} indicators={KPI_INDICATORS} />
 
       <PmMachinesAdmin
         open={pmAdminOpen}
         onClose={() => setPmAdminOpen(false)}
         onSaved={loadPmMachines}
+      />
+      <KpiIndicatorsAdmin
+        open={indicatorAdminOpen}
+        onClose={() => setIndicatorAdminOpen(false)}
+        onSaved={loadKpiIndicatorConfig}
       />
     </div>
   );

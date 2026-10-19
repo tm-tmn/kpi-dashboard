@@ -12,11 +12,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
-  SERVICE_POINTS as DEFAULT_POINTS, TAT_STAGES, TAT_STAGE_META, withPmGroups, MONTH_NAMES_TH, fiscalYearMonths,
-  fiscalYearMonthsFilled,
+  SERVICE_POINTS as DEFAULT_POINTS, TAT_STAGES, TAT_STAGE_META, withPmGroups, withKpiIndicatorConfig,
+  MONTH_NAMES_TH, fiscalYearMonths, fiscalYearMonthsFilled,
 } from "@/lib/constants";
 import type { PmMachine } from "@/lib/sheets-pm-machines";
 import type { ServicePointRow } from "@/lib/sheets-service-points";
+import type { KpiIndicatorConfigRow } from "@/lib/sheets-kpi-indicators";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
@@ -197,6 +198,7 @@ export default function DashboardPage() {
 
   const [pmMachines, setPmMachines] = useState<PmMachine[]>([]);
   const [servicePointRows, setServicePointRows] = useState<ServicePointRow[]>([]);
+  const [kpiIndicatorConfig, setKpiIndicatorConfig] = useState<KpiIndicatorConfigRow[]>([]);
 
   useEffect(() => {
     fetch("/api/records")
@@ -243,6 +245,14 @@ export default function DashboardPage() {
         setServicePointRows(data.points ?? []);
       })
       .catch(() => {});
+
+    fetch("/api/kpi-indicators")
+      .then((r) => r.json())
+      .then((data: { config?: KpiIndicatorConfigRow[]; error?: string }) => {
+        if (data.error) return;
+        setKpiIndicatorConfig(data.config ?? []);
+      })
+      .catch(() => {});
   }, []);
 
   // Admin-managed จุดบริการ (lib/sheets-service-points.ts), active ones only
@@ -259,10 +269,10 @@ export default function DashboardPage() {
   // Admin-managed PM machines (lib/sheets-pm-machines.ts), active ones only
   // — a retired machine drops off the live dashboard/trend calculations
   // immediately, though its past rows stay in the "ตัวชี้วัด" sheet untouched.
-  const kpiIndicators = useMemo(
-    () => withPmGroups(pmMachines.filter((m) => m.active).map((m) => ({ key: m.key, label: m.label }))),
-    [pmMachines]
-  );
+  const kpiIndicators = useMemo(() => {
+    const base = withPmGroups(pmMachines.filter((m) => m.active).map((m) => ({ key: m.key, label: m.label })));
+    return withKpiIndicatorConfig(base, kpiIndicatorConfig);
+  }, [pmMachines, kpiIndicatorConfig]);
 
   const years = useMemo(() => availableFiscalYears(records), [records]);
   const byPoint = useMemo(

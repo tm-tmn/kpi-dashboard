@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { KPI_INDICATORS, MONTH_ABBR_TH, fiscalYearMonths } from "./constants";
+import { KPI_INDICATORS, MONTH_ABBR_TH, fiscalYearMonths, KpiIndicator } from "./constants";
 import { RecordRow } from "./aggregate";
 import { KpiRecordRow } from "./aggregate-kpi";
 import { buildIndicatorRows, Row } from "./kpi-table";
@@ -72,7 +72,8 @@ function writeValueCell(
 export async function buildKpiWorkbook(
   kpiRecords: KpiRecordRow[],
   attendance: RecordRow[],
-  fiscalYear: number
+  fiscalYear: number,
+  indicators: KpiIndicator[] = KPI_INDICATORS
 ): Promise<ExcelJS.Workbook> {
   const months = fiscalYearMonths(fiscalYear);
   const monthLabels = months.map(({ year, month }) => `${MONTH_ABBR_TH[month - 1]} ${String(year).slice(-2)}`);
@@ -115,7 +116,7 @@ export async function buildKpiWorkbook(
   headerRow.height = 30;
 
   let r = 3;
-  KPI_INDICATORS.forEach((indicator, idx) => {
+  indicators.forEach((indicator, idx) => {
     const rows = buildIndicatorRows(indicator, kpiRecords, attendance, months);
     const startRow = r;
 

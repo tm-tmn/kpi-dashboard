@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Table2, FileDown } from "lucide-react";
-import { KPI_INDICATORS, fiscalYearMonths, MONTH_ABBR_TH } from "@/lib/constants";
+import { KPI_INDICATORS, fiscalYearMonths, MONTH_ABBR_TH, KpiIndicator } from "@/lib/constants";
 import { RecordRow } from "@/lib/aggregate";
 import { availableKpiYears, KpiRecordRow } from "@/lib/aggregate-kpi";
 import { buildIndicatorRows } from "@/lib/kpi-table";
@@ -16,7 +16,15 @@ const MONTH_LABELS = [MONTH_ABBR_TH[9], MONTH_ABBR_TH[10], MONTH_ABBR_TH[11], ..
  * indicator (the entry form's exact field labels, so the two always agree).
  * "ส่งออก Excel" downloads the same structure as a real .xlsx file via
  * /api/kpi/export, built server-side with the identical row logic. */
-export function KpiYearTable({ records, attendance }: { records: KpiRecordRow[]; attendance: RecordRow[] }) {
+export function KpiYearTable({
+  records,
+  attendance,
+  indicators = KPI_INDICATORS,
+}: {
+  records: KpiRecordRow[];
+  attendance: RecordRow[];
+  indicators?: KpiIndicator[];
+}) {
   const years = useMemo(() => availableKpiYears(records), [records]);
   const [pickedYear, setPickedYear] = useState<number | null>(null);
   const selectedYear = pickedYear ?? years[years.length - 1] ?? null;
@@ -25,12 +33,12 @@ export function KpiYearTable({ records, attendance }: { records: KpiRecordRow[];
 
   const indicatorRows = useMemo(() => {
     if (!months.length) return [];
-    return KPI_INDICATORS.map((indicator, idx) => ({
+    return indicators.map((indicator, idx) => ({
       idx: idx + 1,
       indicator,
       rows: buildIndicatorRows(indicator, records, attendance, months),
     }));
-  }, [records, attendance, months]);
+  }, [records, attendance, months, indicators]);
 
   if (!selectedYear || years.length === 0) return null;
 

@@ -3,12 +3,20 @@ import { readAllKpiRecords } from "@/lib/sheets-kpi";
 import { readAllRecords } from "@/lib/sheets";
 import { availableKpiYears } from "@/lib/aggregate-kpi";
 import { buildKpiWorkbook } from "@/lib/kpi-export";
+import { withPmGroups, withKpiIndicatorConfig } from "@/lib/constants";
+import { readAllPmMachines } from "@/lib/sheets-pm-machines";
+import { readAllKpiIndicatorConfig } from "@/lib/sheets-kpi-indicators";
 
 // Read-only, same privacy level as GET /api/kpi (public dashboard data) —
 // not covered by the write-auth gate in proxy.ts.
 export async function GET(req: NextRequest) {
   try {
-    const [kpiRecords, attendance] = await Promise.all([readAllKpiRecords(), readAllRecords()]);
+    const [kpiRecords, attendance, pmMachines, kpiConfig] = await Promise.all([
+      readAllKpiRecords(),
+      readAllRecords(),
+      readAllPmMachines(),
+      readAllKpiIndicatorConfig(),
+    ]);
 
     const years = availableKpiYears(kpiRecords);
     const yearParam = req.nextUrl.searchParams.get("year");
@@ -18,7 +26,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "ไม่พบข้อมูลตัวชี้วัดคุณภาพสำหรับปีงบประมาณนี้" }, { status: 404 });
     }
 
-    const workbook = await buildKpiWorkbook(kpiRecords, attendance, fiscalYear);
+    // Same active-only list the dashboard/entry-form show — a retired
+    // machine or deactivated indicator drops out of the export too.
+    const baseIndicators = withPmGroups(pmMachines.filter((m) => m.active).map((m) => ({ key: m.key, label: m.label })));
+    const indicators = withKpiIndicatorConfig(baseIndicators, kpiConfig);
+
+    const workbook = await buildKpiWorkbook(kpiRecords, attendance, fiscalYear, indicators);
     const buffer = await workbook.xlsx.writeBuffer();
 
     return new NextResponse(buffer, {

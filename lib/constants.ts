@@ -233,6 +233,113 @@ export function withPmGroups(groups: { key: string; label: string }[]): KpiIndic
   return KPI_INDICATORS.map((indicator) => (indicator.kind === "pm" ? { ...indicator, groups } : indicator));
 }
 
+/** The 3 generic shapes an admin-added custom KPI indicator can take —
+ * deliberately a subset of the full KpiIndicator union. "ratio_auto" (reads
+ * the attendance total automatically) and "pm" (nested device groups) are
+ * hospital-specific enough that they stay code-defined only; these 3 cover
+ * the common cases a new quality indicator is likely to need. */
+export type CustomKpiIndicatorConfig = {
+  id: string;
+  name: string;
+  shortName: string;
+  criteria: string;
+  kind: "direct_percent" | "ratio_pair" | "incident";
+  field1Label: string;
+  field2Label: string;
+  targetValue: number | null;
+  targetDirection: "max" | "min" | "";
+  decimals: number | null;
+};
+
+/** Builds a real KpiIndicator from an admin-entered custom definition. Field
+ * keys are derived from `id` (e.g. "<id>_pct") rather than admin-typed text,
+ * so they stay safe Sheet column identifiers regardless of what the admin
+ * types as a label — same reasoning as PM machines' `key`. `id` is fixed
+ * once created (never editable afterward), so renaming name/shortName/
+ * criteria/labels later is always safe: it never touches the stable field
+ * keys that past months' data in the "ตัวชี้วัด" sheet are keyed by. */
+export function buildCustomKpiIndicator(row: CustomKpiIndicatorConfig): KpiIndicator {
+  const target: KpiTarget | undefined =
+    row.targetValue != null && (row.targetDirection === "max" || row.targetDirection === "min")
+      ? { value: row.targetValue, direction: row.targetDirection }
+      : undefined;
+  const common = {
+    id: row.id,
+    name: row.name || row.id,
+    shortName: row.shortName || undefined,
+    criteria: row.criteria,
+    decimals: row.decimals ?? undefined,
+    target,
+  };
+  switch (row.kind) {
+    case "direct_percent":
+      return { ...common, kind: "direct_percent", field: { key: `${row.id}_pct`, label: row.field1Label || "ค่า (%)" } };
+    case "ratio_pair":
+      return {
+        ...common,
+        kind: "ratio_pair",
+        numerator: { key: `${row.id}_num`, label: row.field1Label || "จำนวนที่ผ่านเกณฑ์" },
+        denominator: { key: `${row.id}_den`, label: row.field2Label || "จำนวนทั้งหมด" },
+      };
+    case "incident":
+      return {
+        ...common,
+        kind: "incident",
+        countField: { key: `${row.id}_count`, label: row.field1Label || "จำนวนอุบัติการณ์" },
+        checkboxField: { key: `${row.id}_done`, label: row.field2Label || "ดำเนินการแล้ว" },
+      };
+  }
+}
+
+type KpiIndicatorConfigLike = {
+  id: string;
+  kind: "" | "direct_percent" | "ratio_pair" | "incident";
+  order: number;
+  active: boolean;
+} & Omit<CustomKpiIndicatorConfig, "id" | "kind">;
+
+/** Applies the admin-managed "ตัวชี้วัดคุณภาพ (ตั้งค่า)" config on top of the
+ * indicator list (already PM-group-merged via withPmGroups): any of the 6
+ * original indicators gets its active/order from a matching config row when
+ * one exists, and any config row whose id isn't one of the 6 becomes a new
+ * custom indicator (see buildCustomKpiIndicator). Falls back to `base`
+ * completely unchanged when there are no config rows at all (sheet not set
+ * up yet, or unreachable).
+ *
+ * `includeInactive` keeps deactivated indicators in the result instead of
+ * dropping them — used for server-side save validation only, so a save
+ * already in flight when an admin deactivates an indicator mid-session
+ * isn't rejected as "invalid indicator" (same reasoning as PM machines'
+ * read-all-not-just-active validation in app/api/kpi/route.ts). */
+export function withKpiIndicatorConfig(
+  base: KpiIndicator[],
+  configRows: KpiIndicatorConfigLike[],
+  opts: { includeInactive?: boolean } = {}
+): KpiIndicator[] {
+  if (configRows.length === 0) return base;
+  const cfgById = new Map(configRows.map((r) => [r.id, r]));
+  const baseIds = new Set(base.map((b) => b.id));
+  const entries: { indicator: KpiIndicator; order: number }[] = [];
+
+  base.forEach((indicator, i) => {
+    const cfg = cfgById.get(indicator.id);
+    if (!opts.includeInactive && cfg && !cfg.active) return;
+    entries.push({ indicator, order: cfg ? cfg.order : i });
+  });
+
+  configRows
+    .filter((r) => !baseIds.has(r.id) && r.kind !== "" && (opts.includeInactive || r.active))
+    .forEach((r) => {
+      entries.push({
+        indicator: buildCustomKpiIndicator({ ...r, kind: r.kind as "direct_percent" | "ratio_pair" | "incident" }),
+        order: r.order,
+      });
+    });
+
+  entries.sort((a, b) => a.order - b.order);
+  return entries.map((e) => e.indicator);
+}
+
 export type KpiFieldType = "count" | "percent" | "boolean";
 
 /** What kind of value a given (indicator, field) holds — used for
