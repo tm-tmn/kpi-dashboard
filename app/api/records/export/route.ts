@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { readAllRecords } from "@/lib/sheets";
 import { availableFiscalYears } from "@/lib/aggregate";
 import { buildAttendanceWorkbook } from "@/lib/attendance-export";
+import { readAllServicePoints, readAllPatientTypes } from "@/lib/sheets-service-points";
 
 // Read-only, same privacy level as GET /api/records (public dashboard data) —
 // not covered by the write-auth gate in proxy.ts.
 export async function GET(req: NextRequest) {
   try {
-    const records = await readAllRecords();
+    const [records, pointRows, typeRows] = await Promise.all([
+      readAllRecords(),
+      readAllServicePoints(),
+      readAllPatientTypes(),
+    ]);
 
     const years = availableFiscalYears(records);
     const yearParam = req.nextUrl.searchParams.get("year");
@@ -17,7 +22,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "ไม่พบข้อมูลผู้รับบริการสำหรับปีงบประมาณนี้" }, { status: 404 });
     }
 
-    const workbook = await buildAttendanceWorkbook(records, fiscalYear);
+    const points = pointRows.filter((p) => p.active).map((p) => p.point);
+    const pairs = typeRows.filter((t) => t.active).map((t) => ({ point: t.point, type: t.type }));
+    const workbook = await buildAttendanceWorkbook(
+      records,
+      fiscalYear,
+      points.length ? points : undefined,
+      pairs.length ? pairs : undefined
+    );
     const buffer = await workbook.xlsx.writeBuffer();
 
     return new NextResponse(buffer, {

@@ -2,18 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  PATIENT_TYPE_PAIRS,
-  SERVICE_POINTS,
+  PATIENT_TYPE_PAIRS as DEFAULT_PAIRS,
+  SERVICE_POINTS as DEFAULT_POINTS,
   MONTH_NAMES_TH,
   fiscalYearOf,
   fiscalYearMonthsFilled,
 } from "@/lib/constants";
+import type { ServicePointRow, PatientTypeRow } from "@/lib/sheets-service-points";
 import { pointMeta } from "@/lib/point-meta";
-import { Loader2, Save, Users } from "lucide-react";
+import { Loader2, Save, Users, Settings2 } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { AttendanceYearTable } from "@/components/entry/AttendanceYearTable";
 import { CompletenessBadge } from "@/components/entry/CompletenessBadge";
+import { ServicePointsAdmin } from "@/components/entry/ServicePointsAdmin";
 
 type RecordRow = {
   year: number;
@@ -37,6 +39,20 @@ export function AttendanceEntryForm() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [edits, setEdits] = useState<Record<string, number>>({});
+  const [pointRows, setPointRows] = useState<ServicePointRow[]>([]);
+  const [typeRows, setTypeRows] = useState<PatientTypeRow[]>([]);
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  function loadServicePoints() {
+    fetch("/api/service-points")
+      .then((r) => r.json())
+      .then((data: { points?: ServicePointRow[]; pairs?: PatientTypeRow[]; error?: string }) => {
+        if (data.error) return;
+        setPointRows(data.points ?? []);
+        setTypeRows(data.pairs ?? []);
+      })
+      .catch(() => {});
+  }
 
   // Fetch the whole sheet once; the table and the month editor both derive
   // from this one list, instead of each re-fetching on every selector change.
@@ -52,7 +68,22 @@ export function AttendanceEntryForm() {
       })
       .catch((e) => setStatus({ type: "err", text: String(e) }))
       .finally(() => setLoading(false));
+    loadServicePoints();
   }, []);
+
+  // Admin-managed จุดบริการ/ประเภทผู้รับบริการ, active ones only — falls back
+  // to the original hardcoded lists until the admin sheet is set up.
+  const SERVICE_POINTS = useMemo(
+    () => (pointRows.length ? pointRows.filter((p) => p.active).map((p) => p.point) : [...DEFAULT_POINTS]),
+    [pointRows]
+  );
+  const PATIENT_TYPE_PAIRS = useMemo(
+    () =>
+      typeRows.length
+        ? typeRows.filter((t) => t.active && (SERVICE_POINTS as string[]).includes(t.point)).map((t) => ({ point: t.point, type: t.type }))
+        : [...DEFAULT_PAIRS],
+    [typeRows, SERVICE_POINTS]
+  );
 
   // Values shown in the editor: saved records for (year, month), overlaid
   // with any in-progress edits the user hasn't saved yet.
@@ -63,7 +94,7 @@ export function AttendanceEntryForm() {
       if (rec.year === year && rec.month === month) next[keyOf(rec.point, rec.type)] = rec.count;
     }
     return { ...next, ...edits };
-  }, [records, year, month, edits]);
+  }, [records, year, month, edits, PATIENT_TYPE_PAIRS]);
 
   // Reset in-progress edits when switching month/year, so stale numbers
   // from a different month don't leak in.
@@ -83,7 +114,7 @@ export function AttendanceEntryForm() {
       map.get(p.point)!.push(p);
     }
     return map;
-  }, []);
+  }, [PATIENT_TYPE_PAIRS]);
 
   const total = PATIENT_TYPE_PAIRS.reduce(
     (sum, p) => sum + (values[keyOf(p.point, p.type)] || 0),
@@ -174,6 +205,13 @@ export function AttendanceEntryForm() {
             </div>
             <CompletenessBadge filled={monthsFilled} />
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
+            <button
+              onClick={() => setAdminOpen(true)}
+              className="btn btn-ghost btn-xs ml-auto gap-1 text-base-content/50"
+            >
+              <Settings2 size={13} />
+              จัดการจุดบริการ
+            </button>
           </div>
         </BentoCard>
 
@@ -238,7 +276,9 @@ export function AttendanceEntryForm() {
         </div>
       </div>
 
-      <AttendanceYearTable records={records} />
+      <AttendanceYearTable records={records} points={SERVICE_POINTS} pairs={PATIENT_TYPE_PAIRS} />
+
+      <ServicePointsAdmin open={adminOpen} onClose={() => setAdminOpen(false)} onSaved={loadServicePoints} />
     </div>
   );
 }

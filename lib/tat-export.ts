@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, MONTH_ABBR_TH } from "./constants";
+import { SERVICE_POINTS as DEFAULT_POINTS, TAT_STAGES, TAT_STAGE_META, MONTH_ABBR_TH } from "./constants";
 import { TatRecordRow, tatYearTable } from "./aggregate-tat";
 import { pointMeta } from "./point-meta";
 
@@ -17,7 +17,11 @@ const TOTAL_COLS = 1 + 12 + 1; // จุดบริการ/ขั้นตอ
  * columns, a yearly-average column, and the "รวมทั้งหมด" stage bolded in
  * its own accent color — built from the same tatYearTable() the on-screen
  * table uses so the two can never disagree. */
-export async function buildTatWorkbook(records: TatRecordRow[], year: number): Promise<ExcelJS.Workbook> {
+export async function buildTatWorkbook(
+  records: TatRecordRow[],
+  year: number,
+  points: string[] = [...DEFAULT_POINTS]
+): Promise<ExcelJS.Workbook> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "KPI Dashboard";
   wb.created = new Date();
@@ -47,7 +51,7 @@ export async function buildTatWorkbook(records: TatRecordRow[], year: number): P
   });
   headerRow.height = 26;
 
-  const rows = tatYearTable(records, year, SERVICE_POINTS, TAT_STAGES);
+  const rows = tatYearTable(records, year, points, TAT_STAGES);
   const grouped = new Map<string, typeof rows>();
   for (const row of rows) {
     if (!grouped.has(row.point)) grouped.set(row.point, []);
@@ -55,7 +59,7 @@ export async function buildTatWorkbook(records: TatRecordRow[], year: number): P
   }
 
   let r = 3;
-  for (const point of SERVICE_POINTS) {
+  for (const point of points) {
     const meta = pointMeta(point);
     const pointRows = grouped.get(point) ?? [];
     for (const row of pointRows) {

@@ -12,10 +12,11 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
-  SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, withPmGroups, MONTH_NAMES_TH, fiscalYearMonths,
+  SERVICE_POINTS as DEFAULT_POINTS, TAT_STAGES, TAT_STAGE_META, withPmGroups, MONTH_NAMES_TH, fiscalYearMonths,
   fiscalYearMonthsFilled,
 } from "@/lib/constants";
 import type { PmMachine } from "@/lib/sheets-pm-machines";
+import type { ServicePointRow } from "@/lib/sheets-service-points";
 import { pointMeta } from "@/lib/point-meta";
 import {
   RecordRow, availableFiscalYears, fiscalYearByPoint, fiscalYearByType,
@@ -195,6 +196,7 @@ export default function DashboardPage() {
   const [kpiError, setKpiError] = useState<string | null>(null);
 
   const [pmMachines, setPmMachines] = useState<PmMachine[]>([]);
+  const [servicePointRows, setServicePointRows] = useState<ServicePointRow[]>([]);
 
   useEffect(() => {
     fetch("/api/records")
@@ -233,7 +235,26 @@ export default function DashboardPage() {
         setPmMachines(data.machines ?? []);
       })
       .catch(() => {});
+
+    fetch("/api/service-points")
+      .then((r) => r.json())
+      .then((data: { points?: ServicePointRow[]; error?: string }) => {
+        if (data.error) return;
+        setServicePointRows(data.points ?? []);
+      })
+      .catch(() => {});
   }, []);
+
+  // Admin-managed จุดบริการ (lib/sheets-service-points.ts), active ones only
+  // — same pattern as the PM machines below. Shared by both the attendance
+  // and TAT charts/tables on this page.
+  const SERVICE_POINTS = useMemo(
+    () =>
+      servicePointRows.length
+        ? servicePointRows.filter((p) => p.active).map((p) => p.point)
+        : [...DEFAULT_POINTS],
+    [servicePointRows]
+  );
 
   // Admin-managed PM machines (lib/sheets-pm-machines.ts), active ones only
   // — a retired machine drops off the live dashboard/trend calculations
@@ -246,7 +267,7 @@ export default function DashboardPage() {
   const years = useMemo(() => availableFiscalYears(records), [records]);
   const byPoint = useMemo(
     () => (fiscalYear ? fiscalYearByPoint(records, fiscalYear, SERVICE_POINTS) : []),
-    [records, fiscalYear]
+    [records, fiscalYear, SERVICE_POINTS]
   );
   const monthLabels = fiscalMonthLabels();
   const trend = useMemo(() => yearlyTrend(records), [records]);
@@ -283,7 +304,7 @@ export default function DashboardPage() {
   const displayByPoint = useMemo(() => {
     if (selectedMonthPair) return monthByPoint(records, selectedMonthPair.year, selectedMonthPair.month, SERVICE_POINTS);
     return byPoint;
-  }, [records, selectedMonthPair, byPoint]);
+  }, [records, selectedMonthPair, byPoint, SERVICE_POINTS]);
 
   const grandTotal = displayByPoint.reduce((s, p) => s + p.total, 0);
 
@@ -334,7 +355,7 @@ export default function DashboardPage() {
       });
       return { point, data };
     });
-  }, [tatRecords, tatYear, tatMonths]);
+  }, [tatRecords, tatYear, tatMonths, SERVICE_POINTS]);
 
   // Side-by-side point comparison: the latest month (within the selected
   // TAT year) that has any data at all, across every จุดบริการ at once —
@@ -346,7 +367,7 @@ export default function DashboardPage() {
     if (!monthsWithData.length) return { month: null, rows: [] };
     const month = Math.max(...monthsWithData);
     return { month, rows: tatByPointForMonth(tatRecords, tatYear, month, SERVICE_POINTS, TAT_STAGES) };
-  }, [tatRecords, tatYear]);
+  }, [tatRecords, tatYear, SERVICE_POINTS]);
 
   // Fastest/slowest by the "รวมทั้งหมด" stage, to call out at a glance —
   // only meaningful once at least 2 points have that stage filled in.

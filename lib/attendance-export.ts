@@ -1,5 +1,10 @@
 import ExcelJS from "exceljs";
-import { PATIENT_TYPE_PAIRS, SERVICE_POINTS, fiscalYearMonths, MONTH_ABBR_TH } from "./constants";
+import {
+  PATIENT_TYPE_PAIRS as DEFAULT_PAIRS,
+  SERVICE_POINTS as DEFAULT_POINTS,
+  fiscalYearMonths,
+  MONTH_ABBR_TH,
+} from "./constants";
 import { RecordRow, fiscalYearTable } from "./aggregate";
 import { pointMeta } from "./point-meta";
 
@@ -19,7 +24,9 @@ const TOTAL_COLS = 1 + 12 + 1; // จุดบริการ/ประเภท
  * uses so the two can never disagree. */
 export async function buildAttendanceWorkbook(
   records: RecordRow[],
-  fiscalYear: number
+  fiscalYear: number,
+  points: string[] = [...DEFAULT_POINTS],
+  pairs: { point: string; type: string }[] = DEFAULT_PAIRS
 ): Promise<ExcelJS.Workbook> {
   const months = fiscalYearMonths(fiscalYear);
   const monthLabels = months.map(({ year, month }) => `${MONTH_ABBR_TH[month - 1]} ${String(year).slice(-2)}`);
@@ -53,7 +60,7 @@ export async function buildAttendanceWorkbook(
   });
   headerRow.height = 26;
 
-  const rows = fiscalYearTable(records, fiscalYear, PATIENT_TYPE_PAIRS);
+  const rows = fiscalYearTable(records, fiscalYear, pairs);
   const grouped = new Map<string, typeof rows>();
   for (const row of rows) {
     if (!grouped.has(row.point)) grouped.set(row.point, []);
@@ -98,7 +105,7 @@ export async function buildAttendanceWorkbook(
   const grandTotalByMonth = months.map((_, i) => rows.reduce((s, row) => s + row.values[i], 0));
   const grandTotal = rows.reduce((s, row) => s + row.total, 0);
 
-  for (const point of SERVICE_POINTS) {
+  for (const point of points) {
     const pointRows = grouped.get(point) ?? [];
     for (const row of pointRows) {
       writeNumberRow(r, `${pointMeta(point).short} · ${row.type}`, row.values, row.total);

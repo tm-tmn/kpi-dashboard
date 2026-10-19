@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readAllRecords, saveMonth } from "@/lib/sheets";
-import { PATIENT_TYPE_PAIRS } from "@/lib/constants";
+import { PATIENT_TYPE_PAIRS as DEFAULT_PAIRS } from "@/lib/constants";
+import { readAllPatientTypes } from "@/lib/sheets-service-points";
 
 // No "use cache" here, and this reads live data from the Google Sheet API
 // on every call, so Next.js already treats it as dynamic (not prerendered).
@@ -38,10 +39,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate every entry is a known (point, type) pair, and count is a
-    // non-negative number — never trust client input blindly.
-    const validKeys = new Set(
-      PATIENT_TYPE_PAIRS.map((p) => `${p.point}|||${p.type}`)
-    );
+    // non-negative number — never trust client input blindly. Checked
+    // against every configured pair (active or retired), not just the
+    // active ones the entry form currently renders — so a save already in
+    // flight when an admin retires one mid-session isn't rejected.
+    const liveTypes = await readAllPatientTypes();
+    const pairs = liveTypes.length > 0 ? liveTypes : DEFAULT_PAIRS;
+    const validKeys = new Set(pairs.map((p) => `${p.point}|||${p.type}`));
     for (const e of entries) {
       const key = `${e.point}|||${e.type}`;
       if (!validKeys.has(key)) {

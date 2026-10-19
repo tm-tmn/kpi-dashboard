@@ -2,23 +2,36 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { Table2, FileDown } from "lucide-react";
-import { PATIENT_TYPE_PAIRS, SERVICE_POINTS } from "@/lib/constants";
+import {
+  PATIENT_TYPE_PAIRS as DEFAULT_PAIRS,
+  SERVICE_POINTS as DEFAULT_POINTS,
+} from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import { RecordRow, availableFiscalYears, fiscalYearTable, fiscalMonthLabels } from "@/lib/aggregate";
 import { BentoCard } from "@/components/BentoCard";
 
 /** Read-only year-at-a-glance table: every (จุดบริการ, ประเภท) row, Oct..Sep
  * columns, a per-point subtotal row, and a grand total — so the user can see
- * the whole fiscal year without flipping the month dropdown one at a time. */
-export function AttendanceYearTable({ records }: { records: RecordRow[] }) {
+ * the whole fiscal year without flipping the month dropdown one at a time.
+ * `points`/`pairs` default to the original hardcoded lists so any other
+ * caller that doesn't pass the admin-managed lists keeps working unchanged. */
+export function AttendanceYearTable({
+  records,
+  points = DEFAULT_POINTS as unknown as string[],
+  pairs = DEFAULT_PAIRS,
+}: {
+  records: RecordRow[];
+  points?: string[];
+  pairs?: { point: string; type: string }[];
+}) {
   const years = useMemo(() => availableFiscalYears(records), [records]);
   const [pickedYear, setPickedYear] = useState<number | null>(null);
   const selectedYear = pickedYear ?? years[years.length - 1] ?? null;
 
   const months = fiscalMonthLabels();
   const rows = useMemo(
-    () => (selectedYear ? fiscalYearTable(records, selectedYear, PATIENT_TYPE_PAIRS) : []),
-    [records, selectedYear]
+    () => (selectedYear ? fiscalYearTable(records, selectedYear, pairs) : []),
+    [records, selectedYear, pairs]
   );
 
   const grouped = useMemo(() => {
@@ -77,7 +90,7 @@ export function AttendanceYearTable({ records }: { records: RecordRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {SERVICE_POINTS.map((point) => {
+            {points.map((point) => {
               const pointRows = grouped.get(point) ?? [];
               const meta = pointMeta(point);
               const subtotal = months.map((_, i) => pointRows.reduce((s, r) => s + r.values[i], 0));

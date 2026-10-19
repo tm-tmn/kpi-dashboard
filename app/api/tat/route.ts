@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readAllTatRecords, saveTatMonth } from "@/lib/sheets-tat";
-import { SERVICE_POINTS, TAT_STAGES } from "@/lib/constants";
+import { SERVICE_POINTS as DEFAULT_POINTS, TAT_STAGES } from "@/lib/constants";
+import { readAllServicePoints } from "@/lib/sheets-service-points";
 
 export async function GET() {
   try {
@@ -34,7 +35,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ปี พ.ศ. ไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const validPoints = new Set<string>(SERVICE_POINTS);
+    // Checked against every configured point (active or retired), same
+    // reasoning as /api/records above.
+    const livePoints = await readAllServicePoints();
+    const points = livePoints.length > 0 ? livePoints.map((p) => p.point) : [...DEFAULT_POINTS];
+    const validPoints = new Set<string>(points);
     const validStages = new Set<string>(TAT_STAGES);
     for (const e of entries) {
       if (!validPoints.has(e.point) || !validStages.has(e.stage)) {

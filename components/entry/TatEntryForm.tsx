@@ -1,14 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { SERVICE_POINTS, TAT_STAGES, MONTH_NAMES_TH, fiscalYearOf, fiscalYearMonthsFilled } from "@/lib/constants";
+import {
+  SERVICE_POINTS as DEFAULT_POINTS,
+  TAT_STAGES,
+  MONTH_NAMES_TH,
+  fiscalYearOf,
+  fiscalYearMonthsFilled,
+} from "@/lib/constants";
+import type { ServicePointRow } from "@/lib/sheets-service-points";
 import { pointMeta } from "@/lib/point-meta";
 import { TAT_STAGE_META } from "@/lib/constants";
-import { Loader2, Save, Timer } from "lucide-react";
+import { Loader2, Save, Timer, Settings2 } from "lucide-react";
 import { BentoCard } from "@/components/BentoCard";
 import { StatusBanner } from "@/components/StatusBanner";
 import { TatYearTable } from "@/components/entry/TatYearTable";
 import { CompletenessBadge } from "@/components/entry/CompletenessBadge";
+import { ServicePointsAdmin } from "@/components/entry/ServicePointsAdmin";
 
 type TatRecordRow = {
   year: number;
@@ -32,6 +40,18 @@ export function TatEntryForm() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [edits, setEdits] = useState<Record<string, number>>({});
+  const [pointRows, setPointRows] = useState<ServicePointRow[]>([]);
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  function loadServicePoints() {
+    fetch("/api/service-points")
+      .then((r) => r.json())
+      .then((data: { points?: ServicePointRow[]; error?: string }) => {
+        if (data.error) return;
+        setPointRows(data.points ?? []);
+      })
+      .catch(() => {});
+  }
 
   useEffect(() => {
     fetch("/api/tat")
@@ -45,7 +65,15 @@ export function TatEntryForm() {
       })
       .catch((e) => setStatus({ type: "err", text: String(e) }))
       .finally(() => setLoading(false));
+    loadServicePoints();
   }, []);
+
+  // Admin-managed จุดบริการ, active ones only — same pattern as
+  // AttendanceEntryForm.tsx (both forms share the same list).
+  const SERVICE_POINTS = useMemo(
+    () => (pointRows.length ? pointRows.filter((p) => p.active).map((p) => p.point) : [...DEFAULT_POINTS]),
+    [pointRows]
+  );
 
   const values = useMemo(() => {
     const next: Record<string, number> = {};
@@ -56,7 +84,7 @@ export function TatEntryForm() {
       if (rec.year === year && rec.month === month) next[keyOf(rec.point, rec.stage)] = rec.minutes;
     }
     return { ...next, ...edits };
-  }, [records, year, month, edits]);
+  }, [records, year, month, edits, SERVICE_POINTS]);
 
   useEffect(() => {
     // Same reset-on-switch pattern as AttendanceEntryForm.
@@ -76,7 +104,7 @@ export function TatEntryForm() {
     const vals = SERVICE_POINTS.map((p) => values[keyOf(p, totalStage)] || 0).filter((v) => v > 0);
     if (!vals.length) return 0;
     return vals.reduce((a, b) => a + b, 0) / vals.length;
-  }, [values]);
+  }, [values, SERVICE_POINTS]);
 
   async function handleSubmit() {
     setSaving(true);
@@ -155,6 +183,13 @@ export function TatEntryForm() {
             </div>
             <CompletenessBadge filled={monthsFilled} />
             {loading && <Loader2 size={16} className="animate-spin text-base-content/40" />}
+            <button
+              onClick={() => setAdminOpen(true)}
+              className="btn btn-ghost btn-xs ml-auto gap-1 text-base-content/50"
+            >
+              <Settings2 size={13} />
+              จัดการจุดบริการ
+            </button>
           </div>
         </BentoCard>
 
@@ -231,7 +266,9 @@ export function TatEntryForm() {
         </div>
       </div>
 
-      <TatYearTable records={records} />
+      <TatYearTable records={records} points={SERVICE_POINTS} />
+
+      <ServicePointsAdmin open={adminOpen} onClose={() => setAdminOpen(false)} onSaved={loadServicePoints} />
     </div>
   );
 }

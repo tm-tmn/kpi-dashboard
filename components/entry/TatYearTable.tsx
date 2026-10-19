@@ -2,22 +2,30 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { Table2, FileDown } from "lucide-react";
-import { SERVICE_POINTS, TAT_STAGES, TAT_STAGE_META, MONTH_ABBR_TH } from "@/lib/constants";
+import { SERVICE_POINTS as DEFAULT_POINTS, TAT_STAGES, TAT_STAGE_META, MONTH_ABBR_TH } from "@/lib/constants";
 import { pointMeta } from "@/lib/point-meta";
 import { TatRecordRow, availableTatYears, tatYearTable } from "@/lib/aggregate-tat";
 import { BentoCard } from "@/components/BentoCard";
 
 /** Read-only year-at-a-glance table for TAT: every (จุดบริการ, ขั้นตอน) row,
  * Jan..Dec columns (calendar year), and a yearly average column. The
- * "รวมทั้งหมด" stage is bolded, matching the chart's emphasis. */
-export function TatYearTable({ records }: { records: TatRecordRow[] }) {
+ * "รวมทั้งหมด" stage is bolded, matching the chart's emphasis. `points`
+ * defaults to the original hardcoded list so any other caller that doesn't
+ * pass the admin-managed list keeps working unchanged. */
+export function TatYearTable({
+  records,
+  points = DEFAULT_POINTS as unknown as string[],
+}: {
+  records: TatRecordRow[];
+  points?: string[];
+}) {
   const years = useMemo(() => availableTatYears(records), [records]);
   const [pickedYear, setPickedYear] = useState<number | null>(null);
   const selectedYear = pickedYear ?? years[years.length - 1] ?? null;
 
   const rows = useMemo(
-    () => (selectedYear ? tatYearTable(records, selectedYear, SERVICE_POINTS, TAT_STAGES) : []),
-    [records, selectedYear]
+    () => (selectedYear ? tatYearTable(records, selectedYear, points, TAT_STAGES) : []),
+    [records, selectedYear, points]
   );
 
   const grouped = useMemo(() => {
@@ -73,7 +81,7 @@ export function TatYearTable({ records }: { records: TatRecordRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {SERVICE_POINTS.map((point) => {
+            {points.map((point) => {
               const pointRows = grouped.get(point) ?? [];
               const meta = pointMeta(point);
               return (

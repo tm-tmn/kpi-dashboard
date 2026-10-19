@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { readAllTatRecords } from "@/lib/sheets-tat";
 import { availableTatYears } from "@/lib/aggregate-tat";
 import { buildTatWorkbook } from "@/lib/tat-export";
+import { readAllServicePoints } from "@/lib/sheets-service-points";
 
 // Read-only, same privacy level as GET /api/tat (public dashboard data) —
 // not covered by the write-auth gate in proxy.ts.
 export async function GET(req: NextRequest) {
   try {
-    const records = await readAllTatRecords();
+    const [records, pointRows] = await Promise.all([readAllTatRecords(), readAllServicePoints()]);
 
     const years = availableTatYears(records);
     const yearParam = req.nextUrl.searchParams.get("year");
@@ -17,7 +18,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "ไม่พบข้อมูล TAT สำหรับปีนี้" }, { status: 404 });
     }
 
-    const workbook = await buildTatWorkbook(records, year);
+    const points = pointRows.filter((p) => p.active).map((p) => p.point);
+    const workbook = await buildTatWorkbook(records, year, points.length ? points : undefined);
     const buffer = await workbook.xlsx.writeBuffer();
 
     return new NextResponse(buffer, {
